@@ -65,9 +65,6 @@ Memories fetched from the Vector DB are not returned raw to the LLM. They are **
 
 * *Example:* If the agent is in a **Depressive State**, the system applies a **"Grey Filter"** to the retrieved text—stripping away positive adjectives or reinterpreting neutral events as negative—before the LLM ever sees them.
 
-### 3. Memory Reconstruction   
-
-Retrieved memories are not returned raw. They are rewritten by the current emotional state (e.g., a depressed state will "grey out" positive memories) before being fed to the LLM.   
 
 ⚠️ Ethical Considerations & Disclaimer   
 
