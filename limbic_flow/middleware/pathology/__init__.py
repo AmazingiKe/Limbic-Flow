@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
+import time
 from typing import List, Dict, Any, Optional
 from limbic_flow.core.hippocampus import HippocampusInterface
 
@@ -221,7 +222,7 @@ class AlzheimerPathology:
             List[Dict[str, Any]]: 扭曲后的记忆列表
         """
         distorted_memories = []
-        current_time = emotional_state.get("timestamp", np.time.time())
+        current_time = emotional_state.get("timestamp", time.time())
         
         for memory in memories:
             memory_time = memory.get("timestamp", 0)

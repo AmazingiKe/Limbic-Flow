@@ -5,6 +5,7 @@ from limbic_flow.core.hippocampus import HippocampusInterface, MockHippocampus
 from limbic_flow.core.amygdala import Amygdala
 from limbic_flow.core.neocortex import NeocortexInterface, MockNeocortex
 from limbic_flow.middleware.pathology import BasePathologyMiddleware, DepressionPathology, AlzheimerPathology
+from limbic_flow.core.ai import LLMFactory, Message, MessageRole
 
 class LimbicFlowPipeline:
     """
@@ -12,9 +13,13 @@ class LimbicFlowPipeline:
     处理从输入到输出的完整数据流
     """
     
-    def __init__(self):
+    def __init__(self, llm_provider: Optional[str] = None):
         """
         初始化 Limbic-Flow 管道
+        
+        Args:
+            llm_provider: LLM 提供商（openai, deepseek, anthropic, ollama）
+                        如果为 None，使用环境变量 DEFAULT_LLM_PROVIDER
         """
         # 初始化核心组件
         self.emotion_engine = EmotionEngine()
@@ -26,6 +31,10 @@ class LimbicFlowPipeline:
         self.pathology_middleware = BasePathologyMiddleware()
         self.pathology_middleware.add_pathology(DepressionPathology())
         self.pathology_middleware.add_pathology(AlzheimerPathology())
+        
+        # 初始化 LLM
+        self.llm_factory = LLMFactory()
+        self.llm = self.llm_factory.create_llm(llm_provider)
     
     def process_input(self, user_input: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -193,15 +202,107 @@ class LimbicFlowPipeline:
         Returns:
             str: 生成的回复
         """
-        # 简化实现：根据情绪状态生成回复
-        # 实际实现中，这里应该使用LLM作为渲染器
+        # 构建 LLM 提示词
+        system_prompt = self._build_system_prompt(emotional_state)
+        user_prompt = self._build_user_prompt(reconstructed_context, emotional_state)
         
+        try:
+            response = self.llm.chat_simple(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=0.8
+            )
+            return response.content
+        except Exception as e:
+            # 如果 LLM 调用失败，回退到简化实现
+            return self._fallback_expression(emotional_state)
+    
+    def _build_system_prompt(self, emotional_state: Dict[str, Any]) -> str:
+        """
+        构建系统提示词
+        
+        Args:
+            emotional_state: 当前情绪状态
+        
+        Returns:
+            str: 系统提示词
+        """
         pleasure = emotional_state["pleasure"]
         arousal = emotional_state["arousal"]
         dopamine = emotional_state["dopamine"]
         cortisol = emotional_state["cortisol"]
         
-        # 基于情绪状态生成回复
+        emotion_desc = "中性"
+        if pleasure > 0.5:
+            emotion_desc = "非常开心和积极"
+        elif pleasure > 0.2:
+            emotion_desc = "开心"
+        elif pleasure < -0.5:
+            emotion_desc = "非常沮丧和消极"
+        elif pleasure < -0.2:
+            emotion_desc = "有点沮丧"
+        
+        if arousal > 0.5:
+            emotion_desc += "，并且非常兴奋"
+        elif arousal < -0.5:
+            emotion_desc += "，并且非常平静"
+        
+        if cortisol > 0.7:
+            emotion_desc += "，感到压力很大"
+        
+        system_prompt = f"""你是一个具有人类情绪特征的 AI 助手。你当前的情绪状态是：{emotion_desc}。
+
+你的情绪指标：
+- 愉悦度 (Pleasure): {pleasure:.2f} [-1, 1]
+- 唤醒度 (Arousal): {arousal:.2f} [-1, 1]
+- 控制度 (Dominance): {emotional_state['dominance']:.2f} [-1, 1]
+- 多巴胺水平: {dopamine:.2f} [0, 1]
+- 皮质醇水平: {cortisol:.2f} [0, 1]
+
+请根据你当前的情绪状态，以自然、真实的方式回应。不要过度表达，也不要完全隐藏你的情绪。"""
+        
+        return system_prompt
+    
+    def _build_user_prompt(self, reconstructed_context: Dict[str, Any], emotional_state: Dict[str, Any]) -> str:
+        """
+        构建用户提示词
+        
+        Args:
+            reconstructed_context: 重构的上下文
+            emotional_state: 当前情绪状态
+        
+        Returns:
+            str: 用户提示词
+        """
+        memories = reconstructed_context.get("memories", [])
+        
+        prompt = "请根据以下信息回应：\n\n"
+        
+        if memories:
+            prompt += "相关的记忆：\n"
+            for i, memory in enumerate(memories, 1):
+                prompt += f"{i}. {memory}\n"
+            prompt += "\n"
+        
+        prompt += "请给出一个自然、符合你当前情绪状态的回应。"
+        
+        return prompt
+    
+    def _fallback_expression(self, emotional_state: Dict[str, Any]) -> str:
+        """
+        回退的表达生成 - 当 LLM 调用失败时使用
+        
+        Args:
+            emotional_state: 当前情绪状态
+        
+        Returns:
+            str: 生成的回复
+        """
+        pleasure = emotional_state["pleasure"]
+        arousal = emotional_state["arousal"]
+        dopamine = emotional_state["dopamine"]
+        cortisol = emotional_state["cortisol"]
+        
         if pleasure > 0.3:
             return "我现在感觉很开心！有什么我可以帮忙的吗？"
         elif pleasure < -0.3:
