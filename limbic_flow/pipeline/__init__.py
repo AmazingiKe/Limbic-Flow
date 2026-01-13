@@ -6,6 +6,7 @@ from limbic_flow.core.amygdala import Amygdala
 from limbic_flow.core.neocortex import NeocortexInterface, MockNeocortex
 from limbic_flow.middleware.pathology import BasePathologyMiddleware, DepressionPathology, AlzheimerPathology
 from limbic_flow.core.ai import LLMFactory, Message, MessageRole
+from limbic_flow.core.location import LocationDetector
 
 class LimbicFlowPipeline:
     """
@@ -26,6 +27,7 @@ class LimbicFlowPipeline:
         self.hippocampus = MockHippocampus()  # 实际使用时应替换为真实的向量数据库
         self.amygdala = Amygdala()
         self.neocortex = MockNeocortex()  # 实际使用时应替换为真实的图数据库
+        self.location_detector = LocationDetector()
         
         # 初始化病理中间件
         self.pathology_middleware = BasePathologyMiddleware()
@@ -35,6 +37,9 @@ class LimbicFlowPipeline:
         # 初始化 LLM
         self.llm_factory = LLMFactory()
         self.llm = self.llm_factory.create_llm(llm_provider)
+        
+        # 检测并缓存用户位置
+        self.user_location = self.location_detector.detect_location()
     
     def process_input(self, user_input: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -60,7 +65,10 @@ class LimbicFlowPipeline:
         reconstructed_context = self._reconstruction(memories, emotional_state)
         
         # 5. 渲染表达: 生成回复
-        response = self._expression(reconstructed_context, emotional_state)
+        response = self._expression(reconstructed_context, emotional_state, user_input)
+        
+        # 6. 记忆存储: 存储当前交互作为新记忆
+        self._store_interaction_memory(user_input, response, emotional_state, perception_result["query_vector"])
         
         return {
             "response": response,
@@ -85,23 +93,37 @@ class LimbicFlowPipeline:
         # 生成随机查询向量（实际应使用真实的嵌入模型）
         query_vector = np.random.rand(768)  # 假设使用768维向量
         
-        # 简化的情绪冲击计算
+        # 增强的情绪冲击计算
         pleasure = 0.0
         arousal = 0.0
         dominance = 0.0
         
-        # 简单的关键词匹配来模拟情绪反应
-        if any(word in user_input.lower() for word in ["happy", "joy", "love", "good"]):
+        # 积极情绪词汇（包含中英文）
+        positive_words = ["你好", "hello", "hi", "嗨", "高兴", "开心", "快乐", "good", "happy", "joy", "love", "喜欢", "谢谢", "thanks"]
+        # 消极情绪词汇
+        negative_words = ["伤心", "难过", "生气", "愤怒", "bad", "sad", "angry", "hate", "讨厌", "烦", "无聊"]
+        # 唤醒情绪词汇
+        arousing_words = ["兴奋", "激动", "震惊", "surprise", "exciting", "wow", "哇", "厉害", "棒"]
+        # 平静情绪词汇
+        calming_words = ["平静", "放松", "peace", "calm", "relax", "休息", "安静"]
+        # 控制感词汇
+        dominance_words = ["控制", "power", "dominate", "决定", "选择", "我要", "我想"]
+        # 无力感词汇
+        helpless_words = ["无助", "weak", "submit", "不知道", "怎么办", "帮我"]
+        
+        # 计算情绪冲击
+        user_input_lower = user_input.lower()
+        if any(word in user_input_lower or word in user_input for word in positive_words):
             pleasure += 0.3
-        if any(word in user_input.lower() for word in ["sad", "angry", "hate", "bad"]):
+        if any(word in user_input_lower or word in user_input for word in negative_words):
             pleasure -= 0.3
-        if any(word in user_input.lower() for word in ["exciting", "surprise", "wow"]):
+        if any(word in user_input_lower or word in user_input for word in arousing_words):
             arousal += 0.3
-        if any(word in user_input.lower() for word in ["calm", "relax", "peace"]):
+        if any(word in user_input_lower or word in user_input for word in calming_words):
             arousal -= 0.2
-        if any(word in user_input.lower() for word in ["control", "power", "dominate"]):
+        if any(word in user_input_lower or word in user_input for word in dominance_words):
             dominance += 0.2
-        if any(word in user_input.lower() for word in ["helpless", "weak", "submit"]):
+        if any(word in user_input_lower or word in user_input for word in helpless_words):
             dominance -= 0.2
         
         return {
@@ -191,20 +213,21 @@ class LimbicFlowPipeline:
         
         return reconstructed_context
     
-    def _expression(self, reconstructed_context: Dict[str, Any], emotional_state: Dict[str, Any]) -> str:
+    def _expression(self, reconstructed_context: Dict[str, Any], emotional_state: Dict[str, Any], user_input: str) -> str:
         """
         渲染表达 - 生成回复
         
         Args:
             reconstructed_context: 重构的上下文
             emotional_state: 当前情绪状态
+            user_input: 用户原始输入
         
         Returns:
             str: 生成的回复
         """
         # 构建 LLM 提示词
         system_prompt = self._build_system_prompt(emotional_state)
-        user_prompt = self._build_user_prompt(reconstructed_context, emotional_state)
+        user_prompt = self._build_user_prompt(reconstructed_context, emotional_state, user_input)
         
         try:
             response = self.llm.chat_simple(
@@ -250,6 +273,9 @@ class LimbicFlowPipeline:
         if cortisol > 0.7:
             emotion_desc += "，感到压力很大"
         
+        # 获取位置信息
+        location_summary = self.location_detector.get_location_summary(self.user_location)
+        
         system_prompt = f"""你是一个具有人类情绪特征的 AI 助手。你当前的情绪状态是：{emotion_desc}。
 
 你的情绪指标：
@@ -259,32 +285,54 @@ class LimbicFlowPipeline:
 - 多巴胺水平: {dopamine:.2f} [0, 1]
 - 皮质醇水平: {cortisol:.2f} [0, 1]
 
-请根据你当前的情绪状态，以自然、真实的方式回应。不要过度表达，也不要完全隐藏你的情绪。"""
+用户的位置信息：
+{location_summary}
+
+请根据你当前的情绪状态和用户的位置信息，以自然、真实的方式回应。
+注意：
+1. 如果用户询问时间、天气、地点等信息，请参考上述位置信息
+2. 保持友好、温暖的语气，避免冷漠的回应
+3. 可以适当使用表情符号增强表达效果
+4. 不要过度表达，也不要完全隐藏你的情绪"""
         
         return system_prompt
     
-    def _build_user_prompt(self, reconstructed_context: Dict[str, Any], emotional_state: Dict[str, Any]) -> str:
+    def _build_user_prompt(self, reconstructed_context: Dict[str, Any], emotional_state: Dict[str, Any], user_input: str) -> str:
         """
         构建用户提示词
         
         Args:
             reconstructed_context: 重构的上下文
             emotional_state: 当前情绪状态
+            user_input: 用户原始输入
         
         Returns:
             str: 用户提示词
         """
         memories = reconstructed_context.get("memories", [])
         
-        prompt = "请根据以下信息回应：\n\n"
+        prompt = "用户刚刚说：\n"
+        prompt += user_input + "\n\n"
         
         if memories:
             prompt += "相关的记忆：\n"
             for i, memory in enumerate(memories, 1):
-                prompt += f"{i}. {memory}\n"
+                # 提取记忆中的用户输入和系统响应
+                if isinstance(memory, dict) and "user_input" in memory:
+                    prompt += f"{i}. 用户说: '{memory['user_input'][:100]}...'\n"
+                    if "system_response" in memory:
+                        prompt += f"   系统回应: '{memory['system_response'][:100]}...'\n"
+                else:
+                    prompt += f"{i}. {memory}\n"
             prompt += "\n"
         
-        prompt += "请给出一个自然、符合你当前情绪状态的回应。"
+        prompt += "请根据用户的输入和当前的情绪状态，给出一个自然、真实的回应。\n"
+        prompt += "重要提示：\n"
+        prompt += "1. 如果用户询问关于他们自己的信息（如名字、爱好等），请检查记忆中是否有相关信息\n"
+        prompt += "2. 如果记忆中有用户的名字，请在回应中使用用户的名字\n"
+        prompt += "3. 回应应该包含情感表达，体现当前的情绪状态\n"
+        prompt += "4. 回应应该直接回答用户的问题，不要重复无关的内容\n"
+        prompt += "5. 保持友好、温暖的语气，避免冷漠的回应"
         
         return prompt
     
@@ -313,3 +361,40 @@ class LimbicFlowPipeline:
             return "我现在感觉压力很大。让我们冷静一下。"
         else:
             return "我在这里。你想讨论什么？"
+    
+    def _store_interaction_memory(self, user_input: str, response: str, emotional_state: Dict[str, Any], query_vector: "np.ndarray"):
+        """
+        存储交互记忆
+        
+        Args:
+            user_input: 用户输入文本
+            response: 系统响应文本
+            emotional_state: 情绪状态
+            query_vector: 查询向量
+        """
+        import time
+        
+        # 创建记忆对象
+        memory = {
+            "vector": query_vector.tolist(),
+            "pad": {
+                "pleasure": emotional_state["pleasure"],
+                "arousal": emotional_state["arousal"],
+                "dominance": emotional_state["dominance"]
+            },
+            "timestamp": time.time(),
+            "user_input": user_input,
+            "system_response": response,
+            "emotional_state": emotional_state,
+            "narrative": f"用户说: '{user_input[:50]}...'，系统回应: '{response[:50]}...'"
+        }
+        
+        # 存储记忆
+        try:
+            memory_id = self.hippocampus.store_memory(memory)
+            # 可选：记录存储成功的日志
+            # print(f"记忆存储成功，ID: {memory_id}")
+        except Exception as e:
+            # 记忆存储失败不应影响主流程
+            # print(f"记忆存储失败: {str(e)}")
+            pass
