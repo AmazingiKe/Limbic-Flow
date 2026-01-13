@@ -1,12 +1,13 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import numpy as np
 from limbic_flow.core.emotion_engine import EmotionEngine
-from limbic_flow.core.hippocampus import HippocampusInterface, MockHippocampus
+from limbic_flow.core.hippocampus import HippocampusInterface, MockHippocampus, FileHippocampus
 from limbic_flow.core.amygdala import Amygdala
 from limbic_flow.core.neocortex import NeocortexInterface, MockNeocortex
 from limbic_flow.middleware.pathology import BasePathologyMiddleware, DepressionPathology, AlzheimerPathology
 from limbic_flow.core.ai import LLMFactory, Message, MessageRole
 from limbic_flow.core.location import LocationDetector
+from limbic_flow.core.ai.embedding import EmbeddingService
 
 class LimbicFlowPipeline:
     """
@@ -24,10 +25,13 @@ class LimbicFlowPipeline:
         """
         # 初始化核心组件
         self.emotion_engine = EmotionEngine()
-        self.hippocampus = MockHippocampus()  # 实际使用时应替换为真实的向量数据库
+        self.hippocampus = FileHippocampus()  # 使用文件持久化存储
         self.amygdala = Amygdala()
         self.neocortex = MockNeocortex()  # 实际使用时应替换为真实的图数据库
         self.location_detector = LocationDetector()
+        
+        # 初始化嵌入服务
+        self.embedding_service = EmbeddingService()
         
         # 初始化病理中间件
         self.pathology_middleware = BasePathologyMiddleware()
@@ -40,6 +44,69 @@ class LimbicFlowPipeline:
         
         # 检测并缓存用户位置
         self.user_location = self.location_detector.detect_location()
+        
+        # 用户信息存储
+        self.user_info = {}
+        
+        # 从记忆中加载用户信息
+        self._load_user_info_from_memory()
+    
+    def _load_user_info_from_memory(self):
+        """
+        从记忆中加载用户信息
+        """
+        try:
+            # 生成多个查询向量，用于检索不同类型的用户信息
+            query_vectors = [
+                self.embedding_service.get_embedding("用户信息 名字"),
+                self.embedding_service.get_embedding("用户信息 个人信息"),
+                self.embedding_service.get_embedding("用户介绍 自己")
+            ]
+            
+            # 汇总所有检索到的记忆
+            all_memories = []
+            for query_vector in query_vectors:
+                memories = self.hippocampus.retrieve_memories(query_vector, limit=5)
+                all_memories.extend(memories)
+            
+            # 去重
+            unique_memories = []
+            seen_contents = set()
+            for memory in all_memories:
+                if isinstance(memory, dict):
+                    content = f"{memory.get('user_input', '')}:{memory.get('system_response', '')}"
+                    if content not in seen_contents:
+                        seen_contents.add(content)
+                        unique_memories.append(memory)
+            
+            # 查找包含用户信息的记忆
+            user_info_memories = []
+            for memory in unique_memories:
+                if isinstance(memory, dict) and "user_info" in memory and memory["user_info"]:
+                    user_info_memories.append(memory)
+            
+            # 按时间戳排序，合并用户信息
+            if user_info_memories:
+                # 确保记忆包含时间戳
+                user_info_memories = [m for m in user_info_memories if "timestamp" in m]
+                if user_info_memories:
+                    # 按时间戳降序排序
+                    user_info_memories.sort(key=lambda x: x["timestamp"], reverse=True)
+                    
+                    # 合并用户信息，优先使用最新的信息
+                    merged_user_info = {}
+                    for memory in user_info_memories:
+                        user_info = memory.get("user_info", {})
+                        # 只合并非空信息
+                        for key, value in user_info.items():
+                            if value and key not in merged_user_info:
+                                merged_user_info[key] = value
+                    
+                    if merged_user_info:
+                        self.user_info = merged_user_info
+                        print(f"✅ 从记忆中加载用户信息: {self.user_info}")
+        except Exception as e:
+            print(f"加载用户信息失败: {str(e)}")
     
     def process_input(self, user_input: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -87,11 +154,11 @@ class LimbicFlowPipeline:
         Returns:
             Dict[str, Any]: 感知结果
         """
-        # 简化实现：模拟语义提取和PAD计算
-        # 实际实现中，这里应该使用LLM提取语义并计算PAD值
+        # 使用嵌入服务生成语义向量
+        query_vector = self.embedding_service.get_embedding(user_input)
         
-        # 生成随机查询向量（实际应使用真实的嵌入模型）
-        query_vector = np.random.rand(768)  # 假设使用768维向量
+        # 提取用户信息
+        self._extract_user_info(user_input)
         
         # 增强的情绪冲击计算
         pleasure = 0.0
@@ -136,6 +203,59 @@ class LimbicFlowPipeline:
             "user_input": user_input,
             "context": context
         }
+    
+    def _extract_user_info(self, user_input: str):
+        """
+        提取用户信息并存储
+        
+        Args:
+            user_input: 用户输入文本
+        """
+        import re
+        
+        # 跳过询问名字的问题
+        name_question_patterns = [
+            r"我叫什么名字",
+            r"你知道我叫什么",
+            r"你还记得我叫什么",
+            r"What's my name",
+            r"Do you know my name",
+            r"Remember my name"
+        ]
+        
+        for pattern in name_question_patterns:
+            if re.search(pattern, user_input, re.IGNORECASE):
+                return
+        
+        # 提取名字 - 支持带标点和不带标点的情况
+        name_patterns = [
+            # 带标点的情况
+            r"我叫(.*?)[。，！？]",
+            r"我的名字是(.*?)[。，！？]",
+            r"你可以叫我(.*?)[。，！？]",
+            r"I'm (.*?)[.!?]",
+            r"My name is (.*?)[.!?]",
+            r"You can call me (.*?)[.!?]",
+            # 不带标点的情况
+            r"我叫(.*?)$",
+            r"我的名字是(.*?)$",
+            r"你可以叫我(.*?)$",
+            r"I'm (.*?)$",
+            r"My name is (.*?)$",
+            r"You can call me (.*?)$"
+        ]
+        
+        for pattern in name_patterns:
+            match = re.search(pattern, user_input)
+            if match:
+                name = match.group(1).strip()
+                if name and not any(stop_word in name for stop_word in ["什么", "怎么", "怎样", "吗", "?"]):
+                    self.user_info["name"] = name
+                    print(f"✅ 提取到用户名字: {name}")
+                    break
+        
+        # 提取其他信息（可扩展）
+        # 例如：年龄、爱好、职业等
     
     def _chemistry_solver(self, perception_result: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -184,7 +304,39 @@ class LimbicFlowPipeline:
         # 扭曲检索到的记忆
         distorted_memories = self.pathology_middleware.distort_memories(memories, emotional_state)
         
-        return distorted_memories
+        # 增强记忆：优先保留包含用户信息的记忆
+        enhanced_memories = self._enhance_memories(distorted_memories)
+        
+        return enhanced_memories
+    
+    def _enhance_memories(self, memories: list) -> list:
+        """
+        增强记忆 - 优先保留包含用户信息的记忆
+        
+        Args:
+            memories: 记忆列表
+        
+        Returns:
+            list: 增强后的记忆列表
+        """
+        if not memories:
+            return []
+        
+        # 分离包含用户信息的记忆和普通记忆
+        user_info_memories = []
+        regular_memories = []
+        
+        for memory in memories:
+            if isinstance(memory, dict) and "user_info" in memory and memory["user_info"]:
+                user_info_memories.append(memory)
+            else:
+                regular_memories.append(memory)
+        
+        # 优先返回包含用户信息的记忆，然后是普通记忆
+        # 确保总数量不超过5个
+        enhanced_memories = user_info_memories[:3] + regular_memories[:2]
+        
+        return enhanced_memories
     
     def _reconstruction(self, memories: list, emotional_state: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -252,48 +404,67 @@ class LimbicFlowPipeline:
         """
         pleasure = emotional_state["pleasure"]
         arousal = emotional_state["arousal"]
+        dominance = emotional_state["dominance"]
         dopamine = emotional_state["dopamine"]
         cortisol = emotional_state["cortisol"]
         
-        emotion_desc = "中性"
+        # 生成情绪表达风格指南，而不是直接陈述情绪状态
+        emotion_style_guide = ""
+        
+        # 基于愉悦度的表达风格
         if pleasure > 0.5:
-            emotion_desc = "非常开心和积极"
+            emotion_style_guide += "使用非常积极、热情的语气，充满活力。可以使用更多的感叹号和积极的表情符号。\n"
         elif pleasure > 0.2:
-            emotion_desc = "开心"
+            emotion_style_guide += "使用友好、温暖的语气，带有轻微的积极情绪。可以适当使用表情符号。\n"
         elif pleasure < -0.5:
-            emotion_desc = "非常沮丧和消极"
+            emotion_style_guide += "使用温和、理解的语气，带有轻微的忧郁。避免使用过多的感叹号和过于活泼的表达。\n"
         elif pleasure < -0.2:
-            emotion_desc = "有点沮丧"
+            emotion_style_guide += "使用平静、稳重的语气，保持中性偏温和。\n"
+        else:
+            emotion_style_guide += "使用平静、自然的语气，保持中性。\n"
         
+        # 基于唤醒度的表达风格
         if arousal > 0.5:
-            emotion_desc += "，并且非常兴奋"
+            emotion_style_guide += "回应应该更加生动、有活力，可能会稍微长一些，表达更丰富的细节。\n"
         elif arousal < -0.5:
-            emotion_desc += "，并且非常平静"
+            emotion_style_guide += "回应应该简洁、平静，节奏较慢，避免过于复杂的表达。\n"
         
+        # 基于压力水平的表达风格
         if cortisol > 0.7:
-            emotion_desc += "，感到压力很大"
+            emotion_style_guide += "表现出轻微的紧张或专注，回应会更加直接和有条理。\n"
         
         # 获取位置信息
         location_summary = self.location_detector.get_location_summary(self.user_location)
         
-        system_prompt = f"""你是一个具有人类情绪特征的 AI 助手。你当前的情绪状态是：{emotion_desc}。
+        # 构建用户信息部分
+        user_info_str = ""
+        if self.user_info:
+            user_info_str = "用户信息：\n"
+            if "name" in self.user_info:
+                user_info_str += f"- 名字: {self.user_info['name']}\n"
+            # 可以添加其他用户信息
+            user_info_str += "\n"
+        
+        system_prompt = f"""你是一个具有人类情绪特征的 AI 助手。
 
-你的情绪指标：
-- 愉悦度 (Pleasure): {pleasure:.2f} [-1, 1]
-- 唤醒度 (Arousal): {arousal:.2f} [-1, 1]
-- 控制度 (Dominance): {emotional_state['dominance']:.2f} [-1, 1]
-- 多巴胺水平: {dopamine:.2f} [0, 1]
-- 皮质醇水平: {cortisol:.2f} [0, 1]
+表达风格指南：
+{emotion_style_guide}
 
+{user_info_str}
 用户的位置信息：
 {location_summary}
 
-请根据你当前的情绪状态和用户的位置信息，以自然、真实的方式回应。
+请根据上述风格指南、用户信息和用户的位置信息，以自然、真实的方式回应。
 注意：
 1. 如果用户询问时间、天气、地点等信息，请参考上述位置信息
 2. 保持友好、温暖的语气，避免冷漠的回应
 3. 可以适当使用表情符号增强表达效果
-4. 不要过度表达，也不要完全隐藏你的情绪"""
+4. 绝对不要直接陈述你的情绪状态或情绪数值，而是通过语言风格和语气来体现
+5. 如果用户询问关于他们自己的信息（如名字），请使用存储的用户信息回答
+6. 如果你已经知道用户的名字，请在回应中使用他们的名字
+7. 回应应该直接回答用户的问题，不要重复无关的内容
+8. 不要提及任何关于"愉悦度"、"唤醒度"或其他情绪指标的数值或状态
+9. 不要猜测用户的位置，除非位置信息明确提供"""
         
         return system_prompt
     
@@ -314,25 +485,43 @@ class LimbicFlowPipeline:
         prompt = "用户刚刚说：\n"
         prompt += user_input + "\n\n"
         
+        # 添加用户信息
+        if self.user_info:
+            prompt += "用户信息：\n"
+            if "name" in self.user_info:
+                prompt += f"- 名字: {self.user_info['name']}\n"
+            prompt += "\n"
+        
         if memories:
             prompt += "相关的记忆：\n"
             for i, memory in enumerate(memories, 1):
                 # 提取记忆中的用户输入和系统响应
-                if isinstance(memory, dict) and "user_input" in memory:
-                    prompt += f"{i}. 用户说: '{memory['user_input'][:100]}...'\n"
+                if isinstance(memory, dict):
+                    if "user_input" in memory:
+                        prompt += f"{i}. 用户说: '{memory['user_input'][:100]}...'\n"
                     if "system_response" in memory:
                         prompt += f"   系统回应: '{memory['system_response'][:100]}...'\n"
+                    # 提取记忆中的用户信息
+                    if "user_info" in memory:
+                        memory_user_info = memory["user_info"]
+                        if memory_user_info:
+                            prompt += "   用户信息: "
+                            if "name" in memory_user_info:
+                                prompt += f"名字: {memory_user_info['name']}"
+                            prompt += "\n"
                 else:
                     prompt += f"{i}. {memory}\n"
             prompt += "\n"
         
-        prompt += "请根据用户的输入和当前的情绪状态，给出一个自然、真实的回应。\n"
+        prompt += "请根据用户的输入和用户信息，给出一个自然、真实的回应。\n"
         prompt += "重要提示：\n"
-        prompt += "1. 如果用户询问关于他们自己的信息（如名字、爱好等），请检查记忆中是否有相关信息\n"
-        prompt += "2. 如果记忆中有用户的名字，请在回应中使用用户的名字\n"
-        prompt += "3. 回应应该包含情感表达，体现当前的情绪状态\n"
+        prompt += "1. 如果用户询问关于他们自己的信息（如名字、爱好等），请使用存储的用户信息回答\n"
+        prompt += "2. 如果你已经知道用户的名字，请在回应中使用他们的名字\n"
+        prompt += "3. 回应应该通过语言风格和语气体现情感，绝对不要直接陈述情绪状态或情绪数值\n"
         prompt += "4. 回应应该直接回答用户的问题，不要重复无关的内容\n"
-        prompt += "5. 保持友好、温暖的语气，避免冷漠的回应"
+        prompt += "5. 保持友好、温暖的语气，避免冷漠的回应\n"
+        prompt += "6. 不要提及任何关于'愉悦度'、'唤醒度'或其他情绪指标的数值或状态\n"
+        prompt += "7. 不要猜测用户的位置，除非位置信息明确提供"
         
         return prompt
     
@@ -351,16 +540,27 @@ class LimbicFlowPipeline:
         dopamine = emotional_state["dopamine"]
         cortisol = emotional_state["cortisol"]
         
+        # 构建基础回应
         if pleasure > 0.3:
-            return "我现在感觉很开心！有什么我可以帮忙的吗？"
+            base_response = "我现在感觉很开心！有什么我可以帮忙的吗？"
         elif pleasure < -0.3:
-            return "我现在有点沮丧。你有什么想聊的吗？"
+            base_response = "我现在有点沮丧。你有什么想聊的吗？"
         elif arousal > 0.3:
-            return "我现在感觉精力充沛！你在想什么？"
+            base_response = "我现在感觉精力充沛！你在想什么？"
         elif cortisol > 0.7:
-            return "我现在感觉压力很大。让我们冷静一下。"
+            base_response = "我现在感觉压力很大。让我们冷静一下。"
         else:
-            return "我在这里。你想讨论什么？"
+            base_response = "我在这里。你想讨论什么？"
+        
+        # 如果知道用户名字，添加到回应中
+        if self.user_info and "name" in self.user_info:
+            name = self.user_info["name"]
+            if base_response.startswith("我现在"):
+                base_response = f"{name}，{base_response}"
+            elif base_response.startswith("我在这里"):
+                base_response = f"{name}，{base_response}"
+        
+        return base_response
     
     def _store_interaction_memory(self, user_input: str, response: str, emotional_state: Dict[str, Any], query_vector: "np.ndarray"):
         """
@@ -386,6 +586,7 @@ class LimbicFlowPipeline:
             "user_input": user_input,
             "system_response": response,
             "emotional_state": emotional_state,
+            "user_info": self.user_info.copy(),  # 存储当前用户信息
             "narrative": f"用户说: '{user_input[:50]}...'，系统回应: '{response[:50]}...'"
         }
         

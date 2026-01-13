@@ -136,13 +136,6 @@ def main():
                 print(result["response"])
                 print()
                 
-                # 打印情绪状态
-                print(format_emotional_state(result["emotional_state"]))
-                
-                # 打印处理时间
-                print(f"⏱️  处理时间: {end_time - start_time:.2f} 秒")
-                print("-" * 70)
-                
                 # 添加助手回复到历史
                 conversation_history.append({"role": "assistant", "content": result["response"]})
                     

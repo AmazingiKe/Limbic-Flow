@@ -64,13 +64,13 @@ class LocationDetector:
             except Exception:
                 pass
         
-        # 回退：使用默认地区
+        # 回退：使用通用地区信息，不指定具体城市
         default_location = {
             "country_name": "中国",
-            "region_name": "北京",
-            "city": "北京",
-            "latitude": 39.9042,
-            "longitude": 116.4074,
+            "region_name": "",
+            "city": "",
+            "latitude": 35.8617,
+            "longitude": 104.1954,
             "time_zone": {
                 "id": "Asia/Shanghai",
                 "current_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -138,14 +138,23 @@ class LocationDetector:
         Returns:
             str: 地区摘要
         """
-        city = location.get("city", "未知城市")
-        region = location.get("region_name", "未知地区")
+        city = location.get("city", "")
+        region = location.get("region_name", "")
         country = location.get("country_name", "未知国家")
         
         local_time = self.get_local_time(location)
         weather = self.get_weather(location)
         
-        summary = f"{city}, {region}, {country}"
+        # 构建位置描述，避免空值
+        location_parts = []
+        if city:
+            location_parts.append(city)
+        if region and region != city:
+            location_parts.append(region)
+        if country:
+            location_parts.append(country)
+        
+        summary = ", ".join(location_parts) if location_parts else "未知位置"
         summary += f"\n当地时间: {local_time}"
         
         if weather:
