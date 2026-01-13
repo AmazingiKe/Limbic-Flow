@@ -103,6 +103,28 @@ class BaseLLM(ABC):
         """
         pass
 
+    def stream_chat(
+        self,
+        messages: List[Union[Message, Dict[str, str]]],
+        **kwargs
+    ) -> str:
+        """
+        流式聊天接口 - 核心方法
+        
+        Args:
+            messages: 消息列表，可以是 Message 对象或字典
+            **kwargs: 额外的参数，会覆盖 config 中的参数
+        
+        Returns:
+            str: 完整的响应内容
+        
+        Raises:
+            Exception: 调用失败时抛出异常
+        """
+        # 默认实现：使用非流式接口
+        response = self.chat(messages, **kwargs)
+        return response.content
+
     def chat_simple(
         self,
         prompt: str,
@@ -128,6 +150,34 @@ class BaseLLM(ABC):
         messages.append(Message(role=MessageRole.USER, content=prompt))
         
         return self.chat(messages, **kwargs)
+
+    def stream_chat_simple(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        callback: Optional[callable] = None,
+        **kwargs
+    ) -> str:
+        """
+        简化的流式聊天接口 - 单轮对话
+        
+        Args:
+            prompt: 用户提示词
+            system_prompt: 系统提示词（可选）
+            callback: 回调函数，用于处理流式输出
+            **kwargs: 额外的参数
+        
+        Returns:
+            str: 完整的响应内容
+        """
+        messages = []
+        
+        if system_prompt:
+            messages.append(Message(role=MessageRole.SYSTEM, content=system_prompt))
+        
+        messages.append(Message(role=MessageRole.USER, content=prompt))
+        
+        return self.stream_chat(messages, callback=callback, **kwargs)
 
     def _normalize_messages(
         self,

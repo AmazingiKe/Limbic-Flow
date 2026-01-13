@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 import numpy as np
 from limbic_flow.core.emotion_engine import EmotionEngine
 from limbic_flow.core.hippocampus import HippocampusInterface, MockHippocampus, FileHippocampus
@@ -108,13 +108,15 @@ class LimbicFlowPipeline:
         except Exception as e:
             print(f"加载用户信息失败: {str(e)}")
     
-    def process_input(self, user_input: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def process_input(self, user_input: str, context: Dict[str, Any] = None, streaming: bool = False, streaming_callback: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
         """
         处理用户输入
         
         Args:
             user_input: 用户输入文本
             context: 上下文信息
+            streaming: 是否使用流式输出
+            streaming_callback: 流式输出的回调函数
         
         Returns:
             Dict[str, Any]: 处理结果，包含生成的回复
@@ -132,7 +134,7 @@ class LimbicFlowPipeline:
         reconstructed_context = self._reconstruction(memories, emotional_state)
         
         # 5. 渲染表达: 生成回复
-        response = self._expression(reconstructed_context, emotional_state, user_input)
+        response = self._expression(reconstructed_context, emotional_state, user_input, streaming, streaming_callback)
         
         # 6. 记忆存储: 存储当前交互作为新记忆
         self._store_interaction_memory(user_input, response, emotional_state, perception_result["query_vector"])
@@ -365,7 +367,7 @@ class LimbicFlowPipeline:
         
         return reconstructed_context
     
-    def _expression(self, reconstructed_context: Dict[str, Any], emotional_state: Dict[str, Any], user_input: str) -> str:
+    def _expression(self, reconstructed_context: Dict[str, Any], emotional_state: Dict[str, Any], user_input: str, streaming: bool = False, streaming_callback: Optional[Callable[[str], None]] = None) -> str:
         """
         渲染表达 - 生成回复
         
@@ -373,6 +375,8 @@ class LimbicFlowPipeline:
             reconstructed_context: 重构的上下文
             emotional_state: 当前情绪状态
             user_input: 用户原始输入
+            streaming: 是否使用流式输出
+            streaming_callback: 流式输出的回调函数
         
         Returns:
             str: 生成的回复
@@ -382,15 +386,31 @@ class LimbicFlowPipeline:
         user_prompt = self._build_user_prompt(reconstructed_context, emotional_state, user_input)
         
         try:
-            response = self.llm.chat_simple(
-                prompt=user_prompt,
-                system_prompt=system_prompt,
-                temperature=0.8
-            )
-            return response.content
+            if streaming and streaming_callback:
+                # 使用流式接口
+                response = self.llm.stream_chat_simple(
+                    prompt=user_prompt,
+                    system_prompt=system_prompt,
+                    callback=streaming_callback,
+                    temperature=0.8
+                )
+                return response
+            else:
+                # 使用非流式接口
+                response = self.llm.chat_simple(
+                    prompt=user_prompt,
+                    system_prompt=system_prompt,
+                    temperature=0.8
+                )
+                return response.content
         except Exception as e:
             # 如果 LLM 调用失败，回退到简化实现
-            return self._fallback_expression(emotional_state)
+            if streaming and streaming_callback:
+                fallback_response = self._fallback_expression(emotional_state)
+                streaming_callback(fallback_response)
+                return fallback_response
+            else:
+                return self._fallback_expression(emotional_state)
     
     def _build_system_prompt(self, emotional_state: Dict[str, Any]) -> str:
         """

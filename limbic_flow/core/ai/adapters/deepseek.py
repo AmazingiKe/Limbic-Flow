@@ -84,3 +84,47 @@ class DeepSeekLLM(BaseLLM):
             )
         except Exception as e:
             raise Exception(f"DeepSeek API 调用失败: {str(e)}") from e
+
+    def stream_chat(
+        self,
+        messages: List[Union[Message, Dict[str, str]]],
+        **kwargs
+    ) -> str:
+        """
+        调用 DeepSeek Chat API（流式）
+        
+        Args:
+            messages: 消息列表
+            **kwargs: 额外的参数（temperature, max_tokens 等）
+        
+        Returns:
+            str: 完整的响应内容
+        
+        Raises:
+            Exception: API 调用失败时抛出异常
+        """
+        normalized_messages = self._normalize_messages(messages)
+        params = self._merge_config(**kwargs)
+        callback = kwargs.get("callback")
+        
+        try:
+            full_content = ""
+            response = self.client.chat.completions.create(
+                model=self.config.model,
+                messages=normalized_messages,
+                temperature=params.get("temperature"),
+                max_tokens=params.get("max_tokens"),
+                timeout=params.get("timeout"),
+                stream=True
+            )
+            
+            for chunk in response:
+                if chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_content += content
+                    if callback:
+                        callback(content)
+            
+            return full_content
+        except Exception as e:
+            raise Exception(f"DeepSeek API 调用失败: {str(e)}") from e
