@@ -2,24 +2,40 @@ from abc import ABC, abstractmethod
 import numpy as np
 import time
 from typing import List, Dict, Any, Optional
-from limbic_flow.core.hippocampus import HippocampusInterface
+from limbic_flow.core.types import CognitiveState
+
 
 class PathologyMiddleware(ABC):
     """
-    病理中间件接口 - 定义记忆扭曲的抽象方法
+    [职责] 病理中间件接口 - 定义记忆扭曲的抽象方法
+    [场景] 记忆检索后，LLM 思考前
+    [可替换性] 可插拔的病理模块
     """
     
+    def process(self, state: CognitiveState) -> CognitiveState:
+        """
+        [职责] 处理认知状态，应用病理扭曲
+        [场景] Pipeline 调度调用
+        """
+        emotional_state = {
+            "pleasure": state.pleasure,
+            "arousal": state.arousal,
+            "dominance": state.dominance,
+            "dopamine": state.dopamine,
+            "cortisol": state.cortisol,
+            "timestamp": state.timestamp
+        }
+        
+        # 扭曲记忆
+        # 假设海马体已经将原始记忆填入 raw_memories
+        state.distorted_memories = self.distort_memories(state.raw_memories, emotional_state)
+        
+        return state
+
     @abstractmethod
     def distort_query(self, query_vector: np.ndarray, emotional_state: Dict[str, Any]) -> np.ndarray:
         """
         扭曲查询向量
-        
-        Args:
-            query_vector: 原始查询向量
-            emotional_state: 当前情绪状态
-        
-        Returns:
-            np.ndarray: 扭曲后的查询向量
         """
         pass
     
@@ -27,13 +43,6 @@ class PathologyMiddleware(ABC):
     def distort_memories(self, memories: List[Dict[str, Any]], emotional_state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         扭曲检索到的记忆
-        
-        Args:
-            memories: 原始记忆列表
-            emotional_state: 当前情绪状态
-        
-        Returns:
-            List[Dict[str, Any]]: 扭曲后的记忆列表
         """
         pass
 
@@ -51,43 +60,20 @@ class BasePathologyMiddleware(PathologyMiddleware):
     def add_pathology(self, pathology):
         """
         添加病理模块
-        
-        Args:
-            pathology: 病理模块实例
         """
         self.pathologies.append(pathology)
     
     def distort_query(self, query_vector: np.ndarray, emotional_state: Dict[str, Any]) -> np.ndarray:
-        """
-        扭曲查询向量 - 应用所有病理模块
-        
-        Args:
-            query_vector: 原始查询向量
-            emotional_state: 当前情绪状态
-        
-        Returns:
-            np.ndarray: 扭曲后的查询向量
-        """
         distorted_vector = query_vector.copy()
-        
         for pathology in self.pathologies:
             if pathology.should_apply(emotional_state):
                 distorted_vector = pathology.distort_query(distorted_vector, emotional_state)
-        
         return distorted_vector
     
     def distort_memories(self, memories: List[Dict[str, Any]], emotional_state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        扭曲检索到的记忆 - 应用所有病理模块
-        
-        Args:
-            memories: 原始记忆列表
-            emotional_state: 当前情绪状态
-        
-        Returns:
-            List[Dict[str, Any]]: 扭曲后的记忆列表
-        """
-        distorted_memories = memories.copy()
+        distorted_memories = memories # Create a copy inside the loop if needed, but for list of dicts, be careful.
+        # Actually, let's copy the list structure first
+        distorted_memories = list(memories) 
         
         for pathology in self.pathologies:
             if pathology.should_apply(emotional_state):
@@ -97,74 +83,57 @@ class BasePathologyMiddleware(PathologyMiddleware):
 
 class DepressionPathology:
     """
-    抑郁模式病理 - 降低P值，屏蔽快乐记忆
+    [职责] 抑郁模式病理 - 降低P值，屏蔽快乐记忆
+    [逻辑] 皮质醇越高 -> 权重越大 -> 快乐记忆越不可见
     """
     
-    def __init__(self, severity: float = 0.5):
-        """
-        初始化抑郁模式
-        
-        Args:
-            severity: 严重程度 [0, 1]
-        """
-        self.severity = severity
+    def __init__(self, base_severity: float = 0.3):
+        self.base_severity = base_severity
     
     def should_apply(self, emotional_state: Dict[str, Any]) -> bool:
-        """
-        判断是否应该应用此病理
-        
-        Args:
-            emotional_state: 当前情绪状态
-        
-        Returns:
-            bool: 是否应用
-        """
-        # 当愉悦度低于阈值时应用
-        return emotional_state.get("pleasure", 0.0) < -0.3
+        # 只要皮质醇高或愉悦度低就应用
+        cortisol = emotional_state.get("cortisol", 0.0)
+        pleasure = emotional_state.get("pleasure", 0.0)
+        return cortisol > 0.4 or pleasure < -0.2
     
+    def _calculate_dynamic_severity(self, emotional_state: Dict[str, Any]) -> float:
+        # 动态权重：皮质醇越高，严重程度越高
+        cortisol = emotional_state.get("cortisol", 0.3)
+        # 映射: cortisol 0.4 -> 0.0 boost, 1.0 -> 0.6 boost
+        cortisol_boost = max(0.0, (cortisol - 0.4) * 1.0)
+        
+        return min(1.0, self.base_severity + cortisol_boost)
+
     def distort_query(self, query_vector: np.ndarray, emotional_state: Dict[str, Any]) -> np.ndarray:
-        """
-        扭曲查询向量 - 降低积极情绪相关维度
-        
-        Args:
-            query_vector: 原始查询向量
-            emotional_state: 当前情绪状态
-        
-        Returns:
-            np.ndarray: 扭曲后的查询向量
-        """
-        # 在实际实现中，这里应该根据情绪向量的维度进行有针对性的扭曲
-        # 简化实现：添加负向偏移
-        distortion = np.full_like(query_vector, -0.1 * self.severity)
+        severity = self._calculate_dynamic_severity(emotional_state)
+        # 负向偏移
+        distortion = np.full_like(query_vector, -0.1 * severity)
         return query_vector + distortion
     
     def distort_memories(self, memories: List[Dict[str, Any]], emotional_state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        扭曲检索到的记忆 - 屏蔽快乐记忆，降低记忆的积极程度
-        
-        Args:
-            memories: 原始记忆列表
-            emotional_state: 当前情绪状态
-        
-        Returns:
-            List[Dict[str, Any]]: 扭曲后的记忆列表
-        """
+        severity = self._calculate_dynamic_severity(emotional_state)
         distorted_memories = []
         
         for memory in memories:
-            # 降低快乐记忆的权重
-            memory_pleasure = memory.get("pad", {}).get("pleasure", 0.0)
+            # 深拷贝记忆对象以免修改原始数据 (Simple dict copy)
+            mem_copy = memory.copy()
+            if "pad" in memory:
+                mem_copy["pad"] = memory["pad"].copy()
             
-            if memory_pleasure > 0.3:
-                # 快乐记忆被屏蔽的概率
-                if np.random.random() < 0.7 * self.severity:
+            memory_pleasure = mem_copy.get("pad", {}).get("pleasure", 0.0)
+            
+            # 屏蔽快乐记忆
+            if memory_pleasure > 0.2:
+                # 严重程度越高，屏蔽概率越大
+                if np.random.random() < 0.8 * severity:
                     continue
             
-            # 降低记忆的积极程度
-            if "pad" in memory:
-                memory["pad"]["pleasure"] *= (1 - 0.5 * self.severity)
+            # 压低记忆的愉悦度 (P值)
+            if "pad" in mem_copy:
+                # 越严重的抑郁，对快乐的感知越弱
+                mem_copy["pad"]["pleasure"] *= (1.0 - 0.8 * severity)
             
-            distorted_memories.append(memory)
+            distorted_memories.append(mem_copy)
         
         return distorted_memories
 

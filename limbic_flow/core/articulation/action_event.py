@@ -135,3 +135,21 @@ class ActionEvent:
             duration=duration,
             metadata=metadata or {}
         )
+
+    @classmethod
+    def create_revoke(cls, content: str = "", metadata: Optional[Dict[str, Any]] = None) -> "ActionEvent":
+        """
+        创建撤回动作
+        
+        Args:
+            content: 撤回的内容（可选）
+            metadata: 元数据
+            
+        Returns:
+            ActionEvent: 撤回动作事件
+        """
+        return cls(
+            action_type=ActionType.REVOKE,
+            content=content,
+            metadata=metadata or {}
+        )

@@ -6,11 +6,14 @@ import re
 import random
 from typing import List, Dict, Any, Optional
 from .action_event import ActionEvent, ActionType
+from limbic_flow.core.types import CognitiveState
 
 
 class MotorCortex:
     """
-    运动皮层 - 表达核心
+    [职责] 运动皮层 - 将文本转化为带有时序的动作流
+    [场景] Pipeline 末端，负责最终输出
+    [可替换性] 可替换为不同的表达风格引擎
     """
     
     def __init__(
@@ -33,16 +36,43 @@ class MotorCortex:
         # 标点符号集合（用于分段）
         self.sentence_endings = "。！？...？"
         self.clause_separators = "，、；："
+
+    def process(self, state: CognitiveState) -> CognitiveState:
+        """
+        [职责] 处理认知状态，生成动作流
+        [场景] Pipeline 调度调用
+        """
+        # 构建 PAD 状态字典供内部方法使用
+        pad_state = {
+            "pleasure": state.pleasure,
+            "arousal": state.arousal,
+            "dominance": state.dominance
+        }
+        
+        # 生成动作流
+        actions = self.articulate(state.content, pad_state)
+        
+        # 更新状态
+        state.action_queue = actions
+        return state
+
     
-    def _calculate_typing_delay(self, text_length: int, arousal: float) -> float:
+    def _calculate_typing_delay(self, text_length: int, pad_state: Dict[str, float]) -> float:
         """
-        根据文本长度和情绪激活度(Arousal)计算打字耗时
+        根据文本长度和情绪状态计算打字耗时
         """
+        arousal = pad_state.get("arousal", 0.0)
+        dopamine = pad_state.get("dopamine", 0.0)
+
         # 计算速度修正因子
         speed_modifier = 1.0 + (arousal * 0.5)
         
-        # 限制速度修正范围 [0.5, 1.5]
-        speed_modifier = max(0.5, min(1.5, speed_modifier))
+        # 多巴胺 (Dopamine) 影响：兴奋时打字飞快
+        if dopamine > 0.8:
+            speed_modifier *= 1.3
+        
+        # 限制速度修正范围 [0.5, 2.0]
+        speed_modifier = max(0.5, min(2.0, speed_modifier))
         
         # 计算有效打字速度
         effective_wpm = self.base_wpm * speed_modifier
@@ -82,12 +112,17 @@ class MotorCortex:
         """
         arousal = pad_state.get("arousal", 0.0)
         dominance = pad_state.get("dominance", 0.0)
+        dopamine = pad_state.get("dopamine", 0.0)
         
         # 情绪影响分段策略
+        segment_multiplier = 1.0
+        
         if arousal > 0.5 and dominance < -0.3:
             segment_multiplier = 0.8  # 犹豫状态，切分稍碎
-        else:
-            segment_multiplier = 1.0
+            
+        # 多巴胺 (Dopamine) 影响：兴奋时连发模式 (Burst Mode)
+        if dopamine > 0.8:
+            segment_multiplier = 0.5  # 极短的分段，模拟连珠炮
         
         # 按句号、感叹号、问号等完整句尾标点切分
         # 确保句子完整
@@ -133,6 +168,7 @@ class MotorCortex:
         arousal = pad_state.get("arousal", 0.0)
         dominance = pad_state.get("dominance", 0.0)
         pleasure = pad_state.get("pleasure", 0.0)
+        cortisol = pad_state.get("cortisol", 0.0)
         
         # 合并元数据
         event_metadata = {
@@ -150,7 +186,7 @@ class MotorCortex:
         
         for i, segment in enumerate(segments):
             # 计算打字时间
-            typing_duration = self._calculate_typing_delay(len(segment), arousal)
+            typing_duration = self._calculate_typing_delay(len(segment), pad_state)
             
             # 计算犹豫停顿
             hesitation_duration = self._calculate_hesitation(dominance, arousal)
@@ -160,6 +196,15 @@ class MotorCortex:
                 duration=typing_duration,
                 metadata={**event_metadata, "segment_index": i}
             ))
+            
+            # 皮质醇 (Cortisol) 影响：压力大时，输入后会犹豫（模拟打了又删）
+            if cortisol > 0.7:
+                # 额外的纠结时间
+                stress_hesitation = random.uniform(1.0, 3.0)
+                actions.append(ActionEvent.create_wait(
+                    duration=stress_hesitation,
+                    metadata={**event_metadata, "reason": "cortisol_hesitation"}
+                ))
             
             # 添加发送消息动作
             actions.append(ActionEvent.create_message(

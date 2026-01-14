@@ -2,10 +2,13 @@ import sqlite3
 import json
 import time
 from typing import List, Dict, Any
+from limbic_flow.core.types import CognitiveState
 
 class Amygdala:
     """
-    杏仁核模块 - 存储情绪状态日志和生理指标曲线
+    [职责] 杏仁核 - 情绪中心与神经递质调节器
+    [场景] 感知后调用，决定当前的化学状态（焦虑/兴奋）
+    [可替换性] 可替换为不同的情绪模型
     """
     
     def __init__(self, db_path: str = "amygdala.db"):
@@ -17,6 +20,55 @@ class Amygdala:
         """
         self.db_path = db_path
         self._initialize_db()
+
+    def process(self, state: CognitiveState) -> CognitiveState:
+        """
+        [职责] 处理情绪反应，计算神经递质水平
+        [场景] 感知之后，记忆检索之前
+        """
+        # 1. 计算累积压力 (Cumulative Pressure) -> 影响皮质醇 (Cortisol)
+        # 读取最近的历史状态
+        history = self.get_state_history(limit=5)
+        cumulative_stress = 0.0
+        
+        for record in history:
+            r_arousal = record.get('arousal', 0.0)
+            r_pleasure = record.get('pleasure', 0.0)
+            
+            # 如果处于高唤醒且低愉悦状态（焦虑/愤怒），积累压力
+            if r_arousal > 0.2 and r_pleasure < -0.2:
+                cumulative_stress += 0.1
+        
+        # 基础皮质醇水平受当前 PAD 影响
+        # High Arousal + Low Dominance -> Anxiety -> Cortisol Spike
+        current_stress = 0.0
+        if state.arousal > 0.3 and state.dominance < -0.2:
+            current_stress = 0.2
+            
+        # 更新皮质醇 (限制在 0-1)
+        state.cortisol = min(1.0, max(0.0, 0.3 + cumulative_stress + current_stress + state.environmental_pressure))
+        
+        # 2. 计算多巴胺 (Dopamine) - 奖励预期
+        # High Pleasure + High Dominance -> Dopamine
+        dopamine_boost = 0.0
+        if state.pleasure > 0.3:
+            dopamine_boost += 0.2
+        if state.dominance > 0.3:
+            dopamine_boost += 0.1
+            
+        state.dopamine = min(1.0, max(0.0, 0.5 + dopamine_boost))
+
+        # 3. 记录状态到数据库
+        self.log_state({
+            "pleasure": state.pleasure,
+            "arousal": state.arousal,
+            "dominance": state.dominance,
+            "dopamine": state.dopamine,
+            "cortisol": state.cortisol,
+            "timestamp": state.timestamp
+        }, context=state.user_input)
+        
+        return state
     
     def _initialize_db(self):
         """

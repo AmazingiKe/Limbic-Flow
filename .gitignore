@@ -60,3 +60,4 @@ dmypy.json
 
 # Project specific
 amygdala.db
+memory_store.json
