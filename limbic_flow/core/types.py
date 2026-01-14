@@ -19,21 +19,20 @@ class CognitiveState:
     timestamp: float = field(default_factory=time.time)
     
     # Physiological Channel (生理通道)
-    pleasure: float = 0.0
-    arousal: float = 0.0
-    dominance: float = 0.0
-    dopamine: float = 0.5  # 神经递质：奖励预期
-    cortisol: float = 0.3  # 神经递质：压力水平
+    pad_vector: Dict[str, float] = field(default_factory=lambda: {"pleasure": 0.0, "arousal": 0.0, "dominance": 0.0})
+    neurotransmitters: Dict[str, float] = field(default_factory=lambda: {"dopamine": 0.5, "cortisol": 0.3})
     environmental_pressure: float = 0.0 # 环境压力
     
     # Memory Channel (记忆通道)
     query_vector: Optional[Any] = None # numpy array
-    raw_memories: List[Dict[str, Any]] = field(default_factory=list)
+    memories: List[Dict[str, Any]] = field(default_factory=list) # Renamed from raw_memories? User used 'memories'
+    raw_memories: List[Dict[str, Any]] = field(default_factory=list) # Keep for compatibility or use user's name
     distorted_memories: List[Dict[str, Any]] = field(default_factory=list)
     
     # Expression Channel (表达通道)
     introspection: str = "" # 思维链/内省
-    content: str = "" # 最终回复文本
+    final_response_text: str = "" # 最终回复文本
+    content: str = "" # Keep for compatibility, alias to final_response_text?
     
     # Action Channel (动作通道)
     action_queue: List['ActionEvent'] = field(default_factory=list)

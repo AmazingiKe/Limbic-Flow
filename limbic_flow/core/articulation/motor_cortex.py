@@ -44,13 +44,15 @@ class MotorCortex:
         """
         # 构建 PAD 状态字典供内部方法使用
         pad_state = {
-            "pleasure": state.pleasure,
-            "arousal": state.arousal,
-            "dominance": state.dominance
+            "pleasure": state.pad_vector['pleasure'],
+            "arousal": state.pad_vector['arousal'],
+            "dominance": state.pad_vector['dominance'],
+            "dopamine": state.neurotransmitters['dopamine'],
+            "cortisol": state.neurotransmitters['cortisol']
         }
         
         # 生成动作流
-        actions = self.articulate(state.content, pad_state)
+        actions = self.articulate(state.final_response_text, pad_state)
         
         # 更新状态
         state.action_queue = actions

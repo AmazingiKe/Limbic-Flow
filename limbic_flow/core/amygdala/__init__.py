@@ -42,29 +42,29 @@ class Amygdala:
         # 基础皮质醇水平受当前 PAD 影响
         # High Arousal + Low Dominance -> Anxiety -> Cortisol Spike
         current_stress = 0.0
-        if state.arousal > 0.3 and state.dominance < -0.2:
+        if state.pad_vector['arousal'] > 0.3 and state.pad_vector['dominance'] < -0.2:
             current_stress = 0.2
             
         # 更新皮质醇 (限制在 0-1)
-        state.cortisol = min(1.0, max(0.0, 0.3 + cumulative_stress + current_stress + state.environmental_pressure))
+        state.neurotransmitters['cortisol'] = min(1.0, max(0.0, 0.3 + cumulative_stress + current_stress + state.environmental_pressure))
         
         # 2. 计算多巴胺 (Dopamine) - 奖励预期
         # High Pleasure + High Dominance -> Dopamine
         dopamine_boost = 0.0
-        if state.pleasure > 0.3:
+        if state.pad_vector['pleasure'] > 0.3:
             dopamine_boost += 0.2
-        if state.dominance > 0.3:
+        if state.pad_vector['dominance'] > 0.3:
             dopamine_boost += 0.1
             
-        state.dopamine = min(1.0, max(0.0, 0.5 + dopamine_boost))
+        state.neurotransmitters['dopamine'] = min(1.0, max(0.0, 0.5 + dopamine_boost))
 
         # 3. 记录状态到数据库
         self.log_state({
-            "pleasure": state.pleasure,
-            "arousal": state.arousal,
-            "dominance": state.dominance,
-            "dopamine": state.dopamine,
-            "cortisol": state.cortisol,
+            "pleasure": state.pad_vector['pleasure'],
+            "arousal": state.pad_vector['arousal'],
+            "dominance": state.pad_vector['dominance'],
+            "dopamine": state.neurotransmitters['dopamine'],
+            "cortisol": state.neurotransmitters['cortisol'],
             "timestamp": state.timestamp
         }, context=state.user_input)
         

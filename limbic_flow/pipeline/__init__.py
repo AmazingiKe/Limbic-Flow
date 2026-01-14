@@ -35,7 +35,7 @@ class LimbicFlowPipeline:
         self.user_info = {}
         self._load_user_info_from_memory()
 
-    def process_input(self, user_input: str, context: Dict[str, Any] = None) -> Generator[ActionEvent, None, None]:
+    def process_input_stream(self, user_input: str, context: Dict[str, Any] = None) -> Generator[ActionEvent, None, None]:
         """
         [职责] 处理用户输入，生成动作流
         [流程] Input -> Perception -> Amygdala -> Hippocampus -> Pathology -> Brain -> MotorCortex -> Output
@@ -52,7 +52,8 @@ class LimbicFlowPipeline:
         
         # 4. Hippocampus (记忆检索)
         if state.query_vector is not None:
-            state.raw_memories = self.hippocampus.retrieve_memories(state.query_vector, limit=5)
+            state.memories = self.hippocampus.retrieve_memories(state.query_vector, limit=5)
+            state.raw_memories = state.memories # Compatibility
             
         # 5. Pathology Middleware (病理扭曲)
         state = self.pathology_middleware.process(state)
@@ -69,6 +70,9 @@ class LimbicFlowPipeline:
         # 9. Yield Actions (输出动作流)
         for action in state.action_queue:
             yield action
+    
+    # Alias for compatibility
+    process_input = process_input_stream
 
     def _perception(self, state: CognitiveState):
         """感知节点: 提取语义向量，计算环境压力和初始情绪冲击"""
@@ -82,17 +86,17 @@ class LimbicFlowPipeline:
         user_input_lower = state.user_input.lower()
         
         if any(w in user_input_lower for w in ["你好", "hello", "hi", "开心", "good", "happy"]):
-            state.pleasure += 0.3
+            state.pad_vector['pleasure'] += 0.3
         if any(w in user_input_lower for w in ["伤心", "bad", "sad", "angry", "讨厌"]):
-            state.pleasure -= 0.3
+            state.pad_vector['pleasure'] -= 0.3
         if any(w in user_input_lower for w in ["兴奋", "wow", "surprise"]):
-            state.arousal += 0.3
+            state.pad_vector['arousal'] += 0.3
         if any(w in user_input_lower for w in ["平静", "calm", "relax"]):
-            state.arousal -= 0.2
+            state.pad_vector['arousal'] -= 0.2
         if any(w in user_input_lower for w in ["控制", "power", "我要"]):
-            state.dominance += 0.2
+            state.pad_vector['dominance'] += 0.2
         if any(w in user_input_lower for w in ["无助", "help", "weak"]):
-            state.dominance -= 0.2
+            state.pad_vector['dominance'] -= 0.2
 
         # 环境压力 (模拟)
         if "rain" in str(state.context) or "night" in str(state.context):
@@ -127,22 +131,22 @@ class LimbicFlowPipeline:
         memory = {
             "vector": state.query_vector.tolist() if state.query_vector is not None else [],
             "pad": {
-                "pleasure": state.pleasure,
-                "arousal": state.arousal,
-                "dominance": state.dominance
+                "pleasure": state.pad_vector['pleasure'],
+                "arousal": state.pad_vector['arousal'],
+                "dominance": state.pad_vector['dominance']
             },
             "timestamp": state.timestamp,
             "user_input": state.user_input,
-            "system_response": state.content,
+            "system_response": state.final_response_text,
             "emotional_state": {
-                "pleasure": state.pleasure,
-                "arousal": state.arousal,
-                "dominance": state.dominance,
-                "dopamine": state.dopamine,
-                "cortisol": state.cortisol
+                "pleasure": state.pad_vector['pleasure'],
+                "arousal": state.pad_vector['arousal'],
+                "dominance": state.pad_vector['dominance'],
+                "dopamine": state.neurotransmitters['dopamine'],
+                "cortisol": state.neurotransmitters['cortisol']
             },
             "user_info": self.user_info.copy(),
-            "narrative": f"用户说: '{state.user_input[:50]}...'，系统回应: '{state.content[:50]}...'"
+            "narrative": f"用户说: '{state.user_input[:50]}...'，系统回应: '{state.final_response_text[:50]}...'"
         }
         
         try:

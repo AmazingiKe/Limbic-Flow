@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import time
 from dotenv import load_dotenv
 from limbic_flow.pipeline import LimbicFlowPipeline
-from limbic_flow.core.articulation import create_articulation_executor, ActionType, MotorCortex
+from limbic_flow.core.articulation import create_articulation_executor, ActionType
 from limbic_flow.core.emotion_engine import EmotionEngine
 
 
@@ -53,14 +53,8 @@ class EmotionChatTool:
         # 创建管道
         self.pipeline = create_pipeline(self.config)
         
-        # 创建情绪引擎和运动皮层（调整分段策略）
+        # 创建情绪引擎
         self.emotion_engine = EmotionEngine()
-        self.motor = MotorCortex(
-            base_wpm=70,
-            min_segment_length=10,  # 增加最小分段长度，避免过度切分
-            max_segment_length=50,   # 增加最大分段长度，保持句子完整
-            hesitation_base=0.3      # 减少犹豫时间，使对话更流畅
-        )
         
         # 对话历史
         self.conversation_history = []
@@ -140,7 +134,7 @@ class EmotionChatTool:
         
         # 处理输入，获取动作流
         try:
-            action_stream = self.pipeline.process_input(
+            action_stream = self.pipeline.process_input_stream(
                 user_input
             )
             

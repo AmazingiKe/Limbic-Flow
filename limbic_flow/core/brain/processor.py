@@ -33,20 +33,22 @@ class Brain:
                 system_prompt=system_prompt,
                 temperature=0.8
             )
+            state.final_response_text = response.content
             state.content = response.content
         except Exception as e:
             # 回退机制
             print(f"LLM Error: {e}")
-            state.content = self._fallback_expression(state)
+            state.final_response_text = self._fallback_expression(state)
+            state.content = state.final_response_text
             
         return state
 
     def _build_system_prompt(self, state: CognitiveState) -> str:
         # 从 State 中提取情绪
-        pleasure = state.pleasure
-        arousal = state.arousal
-        dominance = state.dominance
-        cortisol = state.cortisol
+        pleasure = state.pad_vector['pleasure']
+        arousal = state.pad_vector['arousal']
+        dominance = state.pad_vector['dominance']
+        cortisol = state.neurotransmitters['cortisol']
         
         # 生成情绪表达风格指南
         emotion_style_guide = ""
@@ -127,13 +129,13 @@ class Brain:
         return prompt
 
     def _fallback_expression(self, state: CognitiveState) -> str:
-        if state.pleasure > 0.3:
+        if state.pad_vector['pleasure'] > 0.3:
             return "我现在感觉很开心！有什么我可以帮忙的吗？"
-        elif state.pleasure < -0.3:
+        elif state.pad_vector['pleasure'] < -0.3:
             return "我现在有点沮丧。你有什么想聊的吗？"
-        elif state.arousal > 0.3:
+        elif state.pad_vector['arousal'] > 0.3:
             return "我现在感觉精力充沛！你在想什么？"
-        elif state.cortisol > 0.7:
+        elif state.neurotransmitters['cortisol'] > 0.7:
             return "我现在感觉压力很大。让我们冷静一下。"
         else:
             return "我在这里。你想讨论什么？"

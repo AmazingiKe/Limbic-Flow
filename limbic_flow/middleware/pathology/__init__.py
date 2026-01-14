@@ -18,11 +18,11 @@ class PathologyMiddleware(ABC):
         [场景] Pipeline 调度调用
         """
         emotional_state = {
-            "pleasure": state.pleasure,
-            "arousal": state.arousal,
-            "dominance": state.dominance,
-            "dopamine": state.dopamine,
-            "cortisol": state.cortisol,
+            "pleasure": state.pad_vector['pleasure'],
+            "arousal": state.pad_vector['arousal'],
+            "dominance": state.pad_vector['dominance'],
+            "dopamine": state.neurotransmitters['dopamine'],
+            "cortisol": state.neurotransmitters['cortisol'],
             "timestamp": state.timestamp
         }
         
