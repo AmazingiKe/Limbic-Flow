@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import time
 from dotenv import load_dotenv
 from limbic_flow.pipeline import LimbicFlowPipeline
-from limbic_flow.core.articulation import MotorCortex, create_articulation_executor
+from limbic_flow.core.articulation import create_articulation_executor, ActionType, MotorCortex
 from limbic_flow.core.emotion_engine import EmotionEngine
 
 
@@ -138,46 +138,56 @@ class EmotionChatTool:
             input_dominance=dominance_change
         )
         
-        # 处理输入，获取完整回复
+        # 处理输入，获取动作流
         try:
-            result = self.pipeline.process_input(
-                user_input,
-                streaming=False
+            action_stream = self.pipeline.process_input(
+                user_input
             )
-            full_response = result["response"]
             
-            # 获取当前情绪状态
-            pad_state = self._get_current_pad_state()
+            # 用于收集完整回复
+            full_response_parts = []
             
-            # 使用运动皮层生成动作流
-            actions = self.motor.articulate(full_response, pad_state)
+            def capturing_callback(action):
+                self._action_callback(action)
+                if action.action_type == ActionType.MESSAGE:
+                    full_response_parts.append(action.content)
             
-            # 执行动作流（只显示消息内容）
+            # 执行动作流
             executor = create_articulation_executor(
-                action_callback=self._action_callback,
+                action_callback=capturing_callback,
                 enable_timing=True,
                 enable_logging=False
             )
             
-            executor.execute(actions)
+            # 消费生成器并执行
+            executor.execute(list(action_stream))
             
             # 添加空行分隔
             print()
             
             # 添加助手回复到历史
+            full_response = "".join(full_response_parts)
             self.conversation_history.append({"role": "assistant", "content": full_response})
                 
         except Exception as e:
             print(f"\n❌ 错误: {str(e)}")
+            import traceback
+            traceback.print_exc()
             print("请检查网络连接或 API Key 是否正确")
             print()
     
     def run(self):
         """运行对话循环"""
+        print("\n=== Limbic-Flow 情感对话终端 ===")
+        print("输入 'exit' 或 'quit' 退出\n")
+        
         try:
             while True:
-                # 获取用户输入（不显示提示）
-                user_input = input().strip()
+                # 获取用户输入
+                try:
+                    user_input = input("你: ").strip()
+                except EOFError:
+                    break
                 
                 # 检查退出命令
                 if user_input.lower() in ["exit", "quit", "退出", "退出()"]:
