@@ -10,6 +10,7 @@ from limbic_flow.core.articulation.motor_cortex import MotorCortex
 from limbic_flow.core.brain.processor import Brain
 from limbic_flow.middleware.pathology import BasePathologyMiddleware, DepressionPathology, AlzheimerPathology
 from limbic_flow.core.ai.embedding import EmbeddingService
+from limbic_flow.utils.logger import get_logger
 
 class LimbicFlowPipeline:
     """
@@ -19,6 +20,7 @@ class LimbicFlowPipeline:
     """
     
     def __init__(self, llm_provider: Optional[str] = None):
+        self.logger = get_logger("LimbicFlowPipeline")
         # 1. 核心器官实例化
         self.embedding_service = EmbeddingService()
         self.amygdala = Amygdala()
@@ -34,6 +36,7 @@ class LimbicFlowPipeline:
         # 3. 辅助状态
         self.user_info = {}
         self._load_user_info_from_memory()
+        self.logger.info("Limbic-Flow Pipeline 初始化完成")
 
     def process_input_stream(self, user_input: str, context: Dict[str, Any] = None) -> Generator[ActionEvent, None, None]:
         """
@@ -123,7 +126,7 @@ class LimbicFlowPipeline:
                 name = match.group(1).strip()
                 if name and not any(sw in name for sw in ["什么", "怎么", "怎样", "吗", "?"]):
                     self.user_info["name"] = name
-                    print(f"✅ 提取到用户名字: {name}")
+                    self.logger.info(f"提取到用户名字: {name}")
                     break
 
     def _store_memory(self, state: CognitiveState):
@@ -174,6 +177,6 @@ class LimbicFlowPipeline:
                 
                 if merged:
                     self.user_info = merged
-                    print(f"✅ 从记忆中加载用户信息: {self.user_info}")
+                    self.logger.info(f"从记忆中加载用户信息: {self.user_info}")
         except Exception as e:
-            print(f"加载用户信息失败: {str(e)}")
+            self.logger.error(f"加载用户信息失败: {str(e)}", exc_info=True)

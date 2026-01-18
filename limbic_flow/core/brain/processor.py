@@ -2,6 +2,7 @@ from typing import Dict, Any, Optional
 from limbic_flow.core.types import CognitiveState
 from limbic_flow.core.ai.factory import LLMFactory
 from limbic_flow.core.location import LocationDetector
+from limbic_flow.utils.logger import get_logger
 
 class Brain:
     """
@@ -11,10 +12,12 @@ class Brain:
     """
     
     def __init__(self, llm_provider: Optional[str] = None):
+        self.logger = get_logger("Brain")
         self.llm_factory = LLMFactory()
         self.llm = self.llm_factory.create_llm(llm_provider)
         self.location_detector = LocationDetector()
         self.user_location = self.location_detector.detect_location()
+        self.logger.info(f"大脑初始化完成，使用 LLM 提供商: {llm_provider or '默认'}")
 
     def process(self, state: CognitiveState) -> CognitiveState:
         """
@@ -37,7 +40,7 @@ class Brain:
             state.content = response.content
         except Exception as e:
             # 回退机制
-            print(f"LLM Error: {e}")
+            self.logger.error(f"LLM 调用失败: {e}", exc_info=True)
             state.final_response_text = self._fallback_expression(state)
             state.content = state.final_response_text
             
