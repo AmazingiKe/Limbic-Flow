@@ -32,6 +32,7 @@ class CognitiveState:
     # Expression Channel (表达通道)
     introspection: str = "" # 思维链/内省
     final_response_text: str = "" # 最终回复文本
+    final_text: str = "" # Alias for final_response_text (requested by refactoring plan)
     content: str = "" # Keep for compatibility, alias to final_response_text?
     
     # Action Channel (动作通道)

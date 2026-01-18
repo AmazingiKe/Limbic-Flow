@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
 感情对话工具 (Emotion Chat Tool)
+[重构] 哑终端模式 - 仅负责显示，不负责思考
 """
 
 import os
 import sys
+import time
 
 # 添加项目根目录到 Python 路径，确保能找到 limbic_flow 模块
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-import time
 from dotenv import load_dotenv
 from limbic_flow.pipeline import LimbicFlowPipeline
-from limbic_flow.core.articulation import create_articulation_executor, ActionType
-from limbic_flow.core.emotion_engine import EmotionEngine
+from limbic_flow.core.articulation import ActionType
 
 
 def load_config():
@@ -23,9 +23,13 @@ def load_config():
     # 检查必要的环境变量
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
-        print("错误: 未配置 DEEPSEEK_API_KEY 环境变量")
-        print("请在 .env 文件中设置 DEEPSEEK_API_KEY=your_api_key")
-        sys.exit(1)
+        # 尝试检查 OPENAI_API_KEY，如果 LLM_PROVIDER 是 openai
+        if os.getenv("DEFAULT_LLM_PROVIDER") == "openai" and os.getenv("OPENAI_API_KEY"):
+            pass
+        else:
+            print("警告: 未配置 DEEPSEEK_API_KEY 环境变量 (默认)")
+            # 不强制退出，因为可能使用其他 Provider
+            # sys.exit(1)
     
     return {
         "llm_provider": os.getenv("DEFAULT_LLM_PROVIDER", "deepseek"),
@@ -44,123 +48,43 @@ def create_pipeline(config):
 
 
 class EmotionChatTool:
-    """感情对话工具"""
+    """
+    [职责] 哑终端 - 仅负责 I/O
+    [场景] 接收 Pipeline 的 Action Stream 并执行显示
+    """
     
     def __init__(self):
         # 加载配置
         self.config = load_config()
         
-        # 创建管道
+        # 创建管道 (中枢神经系统)
         self.pipeline = create_pipeline(self.config)
         
-        # 创建情绪引擎
-        self.emotion_engine = EmotionEngine()
-        
-        # 对话历史
+        # 对话历史 (仅用于本地记录)
         self.conversation_history = []
-    
-    def _get_current_pad_state(self):
-        """获取当前 PAD 情绪状态"""
-        emotion_state = self.emotion_engine.get_state()
-        return {
-            "pleasure": emotion_state["pleasure"],
-            "arousal": emotion_state["arousal"],
-            "dominance": emotion_state["dominance"]
-        }
-    
-    def _analyze_user_emotion(self, user_input):
-        """分析用户输入的情绪"""
-        user_input_lower = user_input.lower()
-        
-        pleasure_change = 0.0
-        arousal_change = 0.0
-        dominance_change = 0.0
-        
-        # 简单的关键词匹配
-        positive_words = ["开心", "高兴", "好", "棒", "happy", "good", "great"]
-        negative_words = ["累", "难过", "不好", "烦", "tired", "sad", "bad", "annoyed"]
-        urgent_words = ["急", "快", "马上", "urgent", "quick", "immediately"]
-        hesitant_words = ["可能", "也许", "不确定", "maybe", "perhaps", "uncertain"]
-        
-        for word in positive_words:
-            if word in user_input_lower:
-                pleasure_change += 0.2
-                arousal_change += 0.1
-        
-        for word in negative_words:
-            if word in user_input_lower:
-                pleasure_change -= 0.2
-                arousal_change += 0.1
-        
-        for word in urgent_words:
-            if word in user_input_lower:
-                arousal_change += 0.3
-        
-        for word in hesitant_words:
-            if word in user_input_lower:
-                dominance_change -= 0.2
-        
-        # 限制变化范围
-        pleasure_change = max(-0.5, min(0.5, pleasure_change))
-        arousal_change = max(-0.5, min(0.5, arousal_change))
-        dominance_change = max(-0.5, min(0.5, dominance_change))
-        
-        return pleasure_change, arousal_change, dominance_change
-    
-    def _action_callback(self, action):
-        """动作回调函数"""
-        action_type = action.action_type.value
-        
-        if action_type == "message":
-            # 确保句子完整，按句尾标点换行
-            content = action.content.strip()
-            if content:
-                print(content)
     
     def process_input(self, user_input):
         """处理用户输入"""
         # 添加到对话历史
         self.conversation_history.append({"role": "user", "content": user_input})
         
-        # 分析用户情绪
-        pleasure_change, arousal_change, dominance_change = self._analyze_user_emotion(user_input)
-        
-        # 更新情绪引擎
-        self.emotion_engine.update(
-            input_pleasure=pleasure_change,
-            input_arousal=arousal_change,
-            input_dominance=dominance_change
-        )
-        
-        # 处理输入，获取动作流
         try:
-            action_stream = self.pipeline.process_input_stream(
-                user_input
-            )
+            # 直接消耗 Pipeline 的动作流
+            # 这里的 Pipeline 已经是“生物体”，包含了感知、思考和表达
+            action_stream = self.pipeline.process_input_stream(user_input)
             
-            # 用于收集完整回复
-            full_response_parts = []
+            full_response = ""
             
-            def capturing_callback(action):
-                self._action_callback(action)
-                if action.action_type == ActionType.MESSAGE:
-                    full_response_parts.append(action.content)
+            # 这里的 action_stream 是一个生成器，会随着 pipeline 内部的处理逐步产生
+            # 注意：目前 Brain 的处理是同步的，所以第一个 action 会在 Brain 生成完之后才 yield
+            for action in action_stream:
+                # 执行动作
+                content = self._execute_action(action)
+                if content:
+                    full_response += content
             
-            # 执行动作流
-            executor = create_articulation_executor(
-                action_callback=capturing_callback,
-                enable_timing=True,
-                enable_logging=False
-            )
-            
-            # 消费生成器并执行
-            executor.execute(list(action_stream))
-            
-            # 添加空行分隔
-            print()
-            
-            # 添加助手回复到历史
-            full_response = "".join(full_response_parts)
+            # 本轮结束
+            print() 
             self.conversation_history.append({"role": "assistant", "content": full_response})
                 
         except Exception as e:
@@ -169,10 +93,39 @@ class EmotionChatTool:
             traceback.print_exc()
             print("请检查网络连接或 API Key 是否正确")
             print()
-    
+            
+    def _execute_action(self, action):
+        """
+        执行单个动作
+        返回: 如果是消息动作，返回内容；否则返回 None
+        """
+        if action.action_type == ActionType.TYPING:
+            # 模拟“正在输入...”
+            duration = action.duration
+            # 使用 \r 覆盖当前行
+            print(f"\r⌨️  阿皓正在输入... ({duration:.1f}s)", end="", flush=True)
+            time.sleep(duration)
+            # 清除提示
+            print(f"\r{' ' * 40}\r", end="", flush=True)
+            return None
+            
+        elif action.action_type == ActionType.WAIT:
+            # 犹豫/停顿
+            time.sleep(action.duration)
+            return None
+            
+        elif action.action_type == ActionType.MESSAGE:
+            # 发送消息
+            content = action.content
+            # 打印消息 (阿皓: xxx)
+            print(f"阿皓: {content}")
+            return content
+            
+        return None
+
     def run(self):
         """运行对话循环"""
-        print("\n=== Limbic-Flow 情感对话终端 ===")
+        print("\n=== Limbic-Flow 原生具身化终端 ===")
         print("输入 'exit' 或 'quit' 退出\n")
         
         try:
