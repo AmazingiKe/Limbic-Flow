@@ -2,10 +2,10 @@ import os
 from typing import Optional
 from limbic_flow.core.articulation.tts.base import TTSBackend
 from limbic_flow.core.articulation.tts.backends.mock import MockTTS
+from limbic_flow.core.articulation.tts.backends.qwen_local import QwenLocalTTS
 
 # 未来在这里导入其他后端
 # from limbic_flow.core.articulation.tts.backends.openai import OpenAITTS
-# from limbic_flow.core.articulation.tts.backends.qwen import QwenTTS
 
 class TTSFactory:
     """
@@ -27,11 +27,19 @@ class TTSFactory:
         if provider == "mock":
             return MockTTS()
 
+        elif provider == "qwen":
+             try:
+                 return QwenLocalTTS()
+             except ImportError as e:
+                 print(f"⚠️ 无法加载 QwenTTS: {e}。回退到 Mock 模式。")
+                 return MockTTS()
+             except Exception as e:
+                 print(f"⚠️ 初始化 QwenTTS 失败: {e}。请检查显存或模型路径。回退到 Mock 模式。")
+                 return MockTTS()
+
         # 预留分支
         # elif provider == "openai":
         #     return OpenAITTS()
-        # elif provider == "qwen":
-        #     return QwenTTS()
 
         else:
             print(f"⚠️ 未知的 TTS 提供商 '{provider}'，回退到 Mock 模式")
