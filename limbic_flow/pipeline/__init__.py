@@ -4,7 +4,7 @@ import time
 import re
 from limbic_flow.core.types import CognitiveState
 from limbic_flow.core.articulation.action_event import ActionEvent
-from limbic_flow.core.hippocampus import FileHippocampus
+from limbic_flow.core.hippocampus import FileHippocampus, HippocampusInterface
 from limbic_flow.core.amygdala import Amygdala
 from limbic_flow.core.articulation.motor_cortex import MotorCortex
 from limbic_flow.core.brain.processor import Brain
@@ -18,16 +18,30 @@ class LimbicFlowPipeline:
     [核心] 维护 CognitiveState 的生命周期
     """
 
-    def __init__(self, llm_provider: Optional[str] = None):
+    def __init__(
+        self,
+        llm_provider: Optional[str] = None,
+        embedding_service: Optional[EmbeddingService] = None,
+        amygdala: Optional[Amygdala] = None,
+        hippocampus: Optional[HippocampusInterface] = None,
+        brain: Optional[Brain] = None,
+        motor_cortex: Optional[MotorCortex] = None,
+        pathology_manager: Optional[PathologyMiddlewareManager] = None,
+        pathologies: Optional[List[PathologyBase]] = None,
+    ):
         # 1. 核心器官实例化
-        self.embedding_service = EmbeddingService()
-        self.amygdala = Amygdala()
-        self.hippocampus = FileHippocampus()
-        self.brain = Brain(llm_provider)
-        self.motor_cortex = MotorCortex()
+        self.embedding_service = embedding_service or EmbeddingService()
+        self.amygdala = amygdala or Amygdala()
+        self.hippocampus = hippocampus or FileHippocampus()
+        self.brain = brain or Brain(llm_provider)
+        self.motor_cortex = motor_cortex or MotorCortex()
 
         # 2. 中间件初始化
-        self.pathology_middleware = PathologyMiddlewareManager()
+        self.pathology_middleware = pathology_manager or PathologyMiddlewareManager()
+        if pathologies:
+            for pathology in pathologies:
+                self.pathology_middleware.register(pathology)
+
 
         # 3. 辅助状态
         self.user_info = {}
@@ -52,24 +66,27 @@ class LimbicFlowPipeline:
         # 3. Amygdala (化学反应: 计算神经递质)
         state = self.amygdala.process(state)
         
-        # 4. Hippocampus (记忆检索)
+        # 4. Pathology Query Distortion (before retrieval)
+        state = self.pathology_middleware.distort_query(state)
+        
+        # 5. Hippocampus (记忆检索)
         if state.query_vector is not None:
             state.memories = self.hippocampus.retrieve_memories(state.query_vector, limit=5)
             state.raw_memories = state.memories # Compatibility
             
-        # 5. Pathology Middleware (病理扭曲)
+        # 6. Pathology Middleware (病理扭曲)
         state = self.pathology_middleware.process(state)
         
-        # 6. Brain/Neocortex (认知思考: 生成文本)
+        # 7. Brain/Neocortex (认知思考: 生成文本)
         state = self.brain.process(state)
         
-        # 7. Motor Cortex (运动表达: 生成动作流)
+        # 8. Motor Cortex (运动表达: 生成动作流)
         state = self.motor_cortex.process(state)
         
-        # 8. Memory Storage (记忆存储 - 闭环)
+        # 9. Memory Storage (记忆存储 - 闭环)
         self._store_memory(state)
         
-        # 9. Yield Actions (输出动作流)
+        # 10. Yield Actions (输出动作流)
         for action in state.action_queue:
             yield action
     
