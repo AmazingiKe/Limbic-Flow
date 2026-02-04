@@ -8,7 +8,7 @@ from limbic_flow.core.hippocampus import FileHippocampus
 from limbic_flow.core.amygdala import Amygdala
 from limbic_flow.core.articulation.motor_cortex import MotorCortex
 from limbic_flow.core.brain.processor import Brain
-from limbic_flow.middleware.pathology import BasePathologyMiddleware, DepressionPathology, AlzheimerPathology
+from limbic_flow.middleware.pathology.base import PathologyMiddlewareManager, PathologyBase
 from limbic_flow.core.ai.embedding import EmbeddingService
 
 class LimbicFlowPipeline:
@@ -17,7 +17,7 @@ class LimbicFlowPipeline:
     [场景] 协调各器官（感知、情绪、记忆、思考、表达）的数据流转
     [核心] 维护 CognitiveState 的生命周期
     """
-    
+
     def __init__(self, llm_provider: Optional[str] = None):
         # 1. 核心器官实例化
         self.embedding_service = EmbeddingService()
@@ -25,15 +25,17 @@ class LimbicFlowPipeline:
         self.hippocampus = FileHippocampus()
         self.brain = Brain(llm_provider)
         self.motor_cortex = MotorCortex()
-        
+
         # 2. 中间件初始化
-        self.pathology_middleware = BasePathologyMiddleware()
-        self.pathology_middleware.add_pathology(DepressionPathology())
-        self.pathology_middleware.add_pathology(AlzheimerPathology())
-        
+        self.pathology_middleware = PathologyMiddlewareManager()
+
         # 3. 辅助状态
         self.user_info = {}
         self._load_user_info_from_memory()
+
+    def register_pathology(self, pathology: PathologyBase):
+        """注册一个新的病理模式"""
+        self.pathology_middleware.register(pathology)
 
     def process_input_stream(self, user_input: str, context: Dict[str, Any] = None) -> Generator[ActionEvent, None, None]:
         """
