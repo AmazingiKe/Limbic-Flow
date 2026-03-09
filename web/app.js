@@ -18,7 +18,9 @@ const state = {
         model: '',
         apiKey: ''
     },
-    isTyping: false
+    isTyping: false,
+    lastMessageTime: Date.now(),
+    autoCheckInterval: null
 };
 
 // DOM 元素
@@ -71,6 +73,78 @@ function init() {
     loadConfig();
     setupEventListeners();
     updateEmotionDisplay();
+    startAutoCheck();
+}
+
+// 自动检查 - 检测是否需要主动发消息
+function startAutoCheck() {
+    // 每30秒检查一次
+    state.autoCheckInterval = setInterval(() => {
+        checkAndInitiateConversation();
+    }, 30000);
+}
+
+// 检查并主动发起对话
+function checkAndInitiateConversation() {
+    const now = Date.now();
+    const gapMinutes = (now - state.lastMessageTime) / 60000;
+    
+    // 超过5分钟没理他，且没有在等待回复
+    if (gapMinutes > 5 && !state.isTyping) {
+        // 根据时间选择不同主动程度
+        let responses = [];
+        
+        if (gapMinutes > 60) {
+            // 1小时+
+            responses = [
+                "你好像忙很久了😴",
+                "在干嘛呢？",
+                "怎么不理我了💔",
+                "是不是把我忘了"
+            ];
+        } else if (gapMinutes > 30) {
+            // 30分钟+
+            responses = [
+                "有点无聊了...",
+                "在干嘛呀",
+                "陪我聊聊天嘛",
+                "还在吗？"
+            ];
+        } else {
+            // 5-30分钟
+            responses = [
+                "怎么突然安静了",
+                "在忙什么？",
+                "嗯？"
+            ];
+        }
+        
+        const response = responses[Math.floor(Math.random() * responses.length)];
+        
+        // 显示打字动画
+        showTyping();
+        
+        setTimeout(() => {
+            hideTyping();
+            addMessage(response, 'ai');
+            
+            // 降低愉悦度
+            state.emotion.pleasure = Math.max(20, state.emotion.pleasure - 5);
+            updateEmotionDisplay();
+        }, 1000 + Math.random() * 1500);
+    }
+}
+
+// 获取时间跨度描述
+function getTimeGapDescription(gapMs) {
+    const minutes = Math.floor(gapMs / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) return `${days}天`;
+    if (hours > 0) return `${hours}小时`;
+    if (minutes > 0) return `${minutes}分钟`;
+    return "刚刚";
 }
 
 // 事件监听
@@ -109,6 +183,9 @@ function autoResize() {
 function sendMessage() {
     const text = elements.input.value.trim();
     if (!text) return;
+
+    // 更新最后消息时间
+    state.lastMessageTime = Date.now();
 
     // 隐藏欢迎画面
     if (elements.welcome) {
