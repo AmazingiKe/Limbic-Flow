@@ -1,199 +1,349 @@
-const API = 'http://localhost:8001';
-const CHAT_KEY = 'limbic_chat';
-const CONFIG_KEY = 'limbic_config';
+// Limbic-Flow 现代聊天应用
 
-const App = {
+// 全局状态
+const state = {
+    messages: [],
+    emotion: {
+        pleasure: 50,
+        arousal: 50,
+        dominance: 50,
+        dopamine: 50,
+        cortisol: 50,
+        serotonin: 50
+    },
+    config: {
+        personality: 'default',
+        pathology: 'none',
+        provider: 'mock',
+        model: '',
+        apiKey: ''
+    },
+    isTyping: false
+};
+
+// DOM 元素
+const elements = {
     chat: document.getElementById('chat'),
     input: document.getElementById('input'),
     sendBtn: document.getElementById('btn-send'),
+    avatar: document.getElementById('avatar'),
+    statusText: document.getElementById('status-text'),
+    welcome: document.getElementById('welcome'),
+    overlay: document.getElementById('overlay'),
     sidebarSettings: document.getElementById('sidebar-settings'),
     sidebarEmotion: document.getElementById('sidebar-emotion'),
-    overlay: document.getElementById('overlay'),
-    
-    init() {
-        this.loadConfig();
-        this.loadChat();
-        this.bindEvents();
-        this.pollEmotion();
-    },
-    
-    loadConfig() {
-        try {
-            const cfg = JSON.parse(localStorage.getItem(CONFIG_KEY));
-            if (cfg) {
-                document.getElementById('personality').value = cfg.personality || 'default';
-                document.getElementById('pathology').value = cfg.pathology || 'none';
-                document.getElementById('llm-provider').value = cfg.llmProvider || 'mock';
-                document.getElementById('llm-model').value = cfg.llmModel || '';
-                document.getElementById('llm-api-key').value = cfg.llmApiKey || '';
-            }
-        } catch(e) { console.log(e); }
-    },
-    
-    loadChat() {
-        try {
-            const msgs = JSON.parse(localStorage.getItem(CHAT_KEY));
-            if (msgs && msgs.length > 0) {
-                msgs.forEach(m => this.appendMsg(m.content, m.sender));
-            }
-        } catch(e) { console.log(e); }
-    },
-    
-    saveChat() {
-        const msgs = [];
-        this.chat.querySelectorAll('.message').forEach(el => {
-            msgs.push({
-                content: el.querySelector('.content').textContent,
-                sender: el.classList.contains('user') ? 'user' : 'bot'
-            });
-        });
-        localStorage.setItem(CHAT_KEY, JSON.stringify(msgs.slice(-50)));
-    },
-    
-    bindEvents() {
-        this.sendBtn.addEventListener('click', () => this.send());
-        this.input.addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
-        });
-        this.input.addEventListener('input', () => {
-            this.input.style.height = 'auto';
-            this.input.style.height = Math.min(this.input.scrollHeight, 120) + 'px';
-        });
-        
-        document.getElementById('btn-settings').onclick = () => this.openSidebar('settings');
-        document.getElementById('btn-emotion').onclick = () => this.openSidebar('emotion');
-        document.getElementById('close-settings').onclick = () => this.closeSidebar();
-        document.getElementById('close-emotion').onclick = () => this.closeSidebar();
-        this.overlay.onclick = () => this.closeSidebar();
-        
-        document.getElementById('save-config').onclick = () => this.saveConfig();
-        document.getElementById('reset-emotion').onclick = () => this.resetEmotion();
-    },
-    
-    openSidebar(type) {
-        this.sidebarSettings.classList.remove('active');
-        this.sidebarEmotion.classList.remove('active');
-        if (type === 'settings') this.sidebarSettings.classList.add('active');
-        else this.sidebarEmotion.classList.add('active');
-        this.overlay.classList.add('active');
-    },
-    
-    closeSidebar() {
-        this.sidebarSettings.classList.remove('active');
-        this.sidebarEmotion.classList.remove('active');
-        this.overlay.classList.remove('active');
-    },
-    
-    async send() {
-        const text = this.input.value.trim();
-        if (!text) return;
-        
-        this.appendMsg(text, 'user');
-        this.input.value = '';
-        this.input.style.height = 'auto';
-        
-        const loading = this.appendLoading();
-        
-        try {
-            const res = await fetch(`${API}/process`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_input: text,
-                    context: {
-                        personality: document.getElementById('personality').value,
-                        pathology: document.getElementById('pathology').value
-                    }
-                })
-            });
-            const data = await res.json();
-            loading.remove();
-            
-            const reply = data.actions?.filter(a => a.action === 'message').map(a => a.content).join('') || '...';
-            this.appendMsg(reply, 'bot');
-        } catch(e) {
-            loading.remove();
-            this.appendMsg('连接失败', 'bot');
-        }
-        
-        this.saveChat();
-        this.pollEmotion();
-    },
-    
-    appendMsg(text, sender) {
-        const div = document.createElement('div');
-        div.className = `message ${sender}`;
-        div.innerHTML = `<div class="avatar">${sender === 'bot' ? '🧠' : '👤'}</div><div class="content">${this.escape(text)}</div>`;
-        this.chat.appendChild(div);
-        this.chat.scrollTop = this.chat.scrollHeight;
-    },
-    
-    appendLoading() {
-        const div = document.createElement('div');
-        div.className = 'message bot';
-        div.innerHTML = `<div class="avatar">🧠</div><div class="content"><div class="typing"><span></span><span></span><span></span></div></div>`;
-        this.chat.appendChild(div);
-        this.chat.scrollTop = this.chat.scrollHeight;
-        return div;
-    },
-    
-    async pollEmotion() {
-        try {
-            const res = await fetch(`${API}/emotion/current`);
-            const data = await res.json();
-            const e = data.emotion || {};
-            this.updateBar('pleasure', e.pleasure);
-            this.updateBar('arousal', e.arousal);
-            this.updateBar('dominance', e.dominance);
-            this.updateBar('dopamine', e.dopamine);
-            this.updateBar('cortisol', e.cortisol);
-        } catch(e) {}
-        setTimeout(() => this.pollEmotion(), 3000);
-    },
-    
-    updateBar(key, val) {
-        const v = parseFloat(val) || 0;
-        const pct = (v + 1) * 50;
-        document.getElementById(`bar-${key}`).style.width = `${Math.min(100, Math.max(0, pct))}%`;
-        document.getElementById(`val-${key}`).textContent = Math.round(v * 100);
-    },
-    
-    async saveConfig() {
-        const cfg = {
-            personality: document.getElementById('personality').value,
-            pathology: document.getElementById('pathology').value,
-            llmProvider: document.getElementById('llm-provider').value,
-            llmModel: document.getElementById('llm-model').value,
-            llmApiKey: document.getElementById('llm-api-key').value
-        };
-        localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
-        
-        try {
-            await fetch(`${API}/config`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({personality: cfg.personality, pathology: cfg.pathology})
-            });
-        } catch(e) {}
-        
-        alert('已保存');
-        this.closeSidebar();
-    },
-    
-    async resetEmotion() {
-        try {
-            await fetch(`${API}/emotion/reset`, {method: 'POST'});
-            this.appendMsg('情绪已重置~', 'bot');
-            this.saveChat();
-        } catch(e) {}
-        this.closeSidebar();
-    },
-    
-    escape(t) {
-        const d = document.createElement('div');
-        d.textContent = t;
-        return d.innerHTML;
-    }
+    btnSettings: document.getElementById('btn-settings'),
+    btnEmotion: document.getElementById('btn-emotion'),
+    closeSettings: document.getElementById('close-settings'),
+    closeEmotion: document.getElementById('close-emotion'),
+    saveConfig: document.getElementById('save-config'),
+    resetEmotion: document.getElementById('reset-emotion'),
+    personality: document.getElementById('personality'),
+    pathology: document.getElementById('pathology'),
+    provider: document.getElementById('llm-provider'),
+    model: document.getElementById('llm-model'),
+    apiKey: document.getElementById('llm-api-key')
 };
 
-document.addEventListener('DOMContentLoaded', () => App.init());
+// 情绪图标映射
+const emotionIcons = {
+    joy: '😊',
+    sadness: '😢',
+    anger: '😠',
+    fear: '😨',
+    surprise: '😲',
+    disgust: '🤢',
+    neutral: '😐',
+    love: '❤️',
+    anxiety: '😰'
+};
+
+// GIF 反应
+const gifReactions = {
+    positive: ['👍', '❤️', '😊', '🎉', '✨'],
+    negative: ['😔', '💔', '😞', '😢'],
+    thinking: ['🤔', '💭', '🧐'],
+    surprised: ['😮', '😲', '🎉']
+};
+
+// 初始化
+function init() {
+    loadConfig();
+    setupEventListeners();
+    updateEmotionDisplay();
+}
+
+// 事件监听
+function setupEventListeners() {
+    // 发送消息
+    elements.sendBtn.addEventListener('click', sendMessage);
+    elements.input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // 输入框自动调整高度
+    elements.input.addEventListener('input', autoResize);
+
+    // 侧边栏
+    elements.btnSettings.addEventListener('click', () => openSidebar('settings'));
+    elements.btnEmotion.addEventListener('click', () => openSidebar('emotion'));
+    elements.closeSettings.addEventListener('click', () => closeSidebar('settings'));
+    elements.closeEmotion.addEventListener('click', () => closeSidebar('emotion'));
+    elements.overlay.addEventListener('click', closeAllSidebars);
+
+    // 保存配置
+    elements.saveConfig.addEventListener('click', saveConfig);
+    elements.resetEmotion.addEventListener('click', resetEmotion);
+}
+
+// 自动调整输入框高度
+function autoResize() {
+    elements.input.style.height = 'auto';
+    elements.input.style.height = Math.min(elements.input.scrollHeight, 120) + 'px';
+}
+
+// 发送消息
+function sendMessage() {
+    const text = elements.input.value.trim();
+    if (!text) return;
+
+    // 隐藏欢迎画面
+    if (elements.welcome) {
+        elements.welcome.style.display = 'none';
+    }
+
+    // 添加用户消息
+    addMessage(text, 'user');
+
+    // 清空输入框
+    elements.input.value = '';
+    elements.input.style.height = 'auto';
+
+    // 显示打字动画
+    showTyping();
+
+    // 更新情绪
+    updateEmotionFromText(text);
+
+    // 模拟 AI 响应
+    setTimeout(() => {
+        hideTyping();
+        generateResponse(text);
+    }, 1000 + Math.random() * 1500);
+}
+
+// 添加消息
+function addMessage(text, sender) {
+    const messageEl = document.createElement('div');
+    messageEl.className = `message ${sender}`;
+    messageEl.innerHTML = `
+        <div class="message-avatar">${sender === 'user' ? '👤' : '🧠'}</div>
+        <div class="message-content">
+            <div class="message-bubble">${escapeHtml(text)}</div>
+            <span class="message-time">${getTime()}</span>
+        </div>
+    `;
+
+    elements.chat.appendChild(messageEl);
+    scrollToBottom();
+}
+
+// 显示打字动画
+function showTyping() {
+    state.isTyping = true;
+    const typingEl = document.createElement('div');
+    typingEl.className = 'message ai';
+    typingEl.id = 'typing-indicator';
+    typingEl.innerHTML = `
+        <div class="message-avatar">🧠</div>
+        <div class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+    `;
+    elements.chat.appendChild(typingEl);
+    scrollToBottom();
+}
+
+// 隐藏打字动画
+function hideTyping() {
+    const typingEl = document.getElementById('typing-indicator');
+    if (typingEl) {
+        typingEl.remove();
+    }
+    state.isTyping = false;
+}
+
+// 生成响应
+function generateResponse(userText) {
+    const responses = [
+        "我理解你的感受。让我想想...",
+        "这是一个很有趣的话题。你为什么会这么认为呢？",
+        "我明白你的意思了。",
+        "感谢你分享这些。你希望我怎样帮助你？",
+        "我在这里倾听。继续说吧。",
+        "这让我有了新的思考角度。",
+        "我感受到了你的情绪。",
+        "让我们一起探讨这个问题。"
+    ];
+
+    const response = responses[Math.floor(Math.random() * responses.length)];
+    addMessage(response, 'ai');
+
+    // 根据用户输入更新情绪
+    updateEmotionFromText(userText);
+}
+
+// 从文本更新情绪
+function updateEmotionFromText(text) {
+    const textLower = text.toLowerCase();
+
+    // 简单的情绪关键词检测
+    const positiveWords = ['好', '开心', '喜欢', '棒', '谢谢', 'happy', 'good', 'great', 'love'];
+    const negativeWords = ['难过', '生气', '伤心', 'bad', 'sad', 'angry', 'hate'];
+    const excitedWords = ['哇', '太棒了', '激动', 'amazing', 'excited', 'wow'];
+
+    let emotionChange = { pleasure: 0, arousal: 0 };
+
+    positiveWords.forEach(word => {
+        if (textLower.includes(word)) emotionChange.pleasure += 10;
+    });
+
+    negativeWords.forEach(word => {
+        if (textLower.includes(word)) emotionChange.pleasure -= 10;
+    });
+
+    excitedWords.forEach(word => {
+        if (textLower.includes(word)) {
+            emotionChange.pleasure += 5;
+            emotionChange.arousal += 15;
+        }
+    });
+
+    // 应用变化
+    state.emotion.pleasure = Math.max(0, Math.min(100, state.emotion.pleasure + emotionChange.pleasure));
+    state.emotion.arousal = Math.max(0, Math.min(100, state.emotion.arousal + emotionChange.arousal));
+
+    // 更新显示
+    updateEmotionDisplay();
+    updateAvatar();
+}
+
+// 更新情绪显示
+function updateEmotionDisplay() {
+    const emotionMain = document.getElementById('emotion-main');
+    const emotionArousal = document.getElementById('emotion-arousal');
+    const emotionDominance = document.getElementById('emotion-dominance');
+    const emotionDopamine = document.getElementById('emotion-dopamine');
+
+    if (emotionMain) emotionMain.textContent = Math.round(state.emotion.pleasure);
+    if (emotionArousal) emotionArousal.textContent = Math.round(state.emotion.arousal);
+    if (emotionDominance) emotionDominance.textContent = Math.round(state.emotion.dominance);
+    if (emotionDopamine) emotionDopamine.textContent = Math.round(state.emotion.dopamine);
+
+    // 更新头像
+    updateAvatar();
+}
+
+// 更新头像
+function updateAvatar() {
+    const emotionIcon = getEmotionIcon();
+    elements.avatar.textContent = emotionIcon;
+}
+
+// 获取情绪图标
+function getEmotionIcon() {
+    if (state.emotion.pleasure > 70) return '😊';
+    if (state.emotion.pleasure < 30) return '😢';
+    if (state.emotion.arousal > 70) return '😮';
+    if (state.emotion.pleasure > 50 && state.emotion.arousal > 50) return '😄';
+    return '🧠';
+}
+
+// 打开侧边栏
+function openSidebar(type) {
+    const sidebar = type === 'settings' ? elements.sidebarSettings : elements.sidebarEmotion;
+    sidebar.classList.add('active');
+    elements.overlay.classList.add('active');
+}
+
+// 关闭侧边栏
+function closeSidebar(type) {
+    const sidebar = type === 'settings' ? elements.sidebarSettings : elements.sidebarEmotion;
+    sidebar.classList.remove('active');
+    elements.overlay.classList.remove('active');
+}
+
+// 关闭所有侧边栏
+function closeAllSidebars() {
+    elements.sidebarSettings.classList.remove('active');
+    elements.sidebarEmotion.classList.remove('active');
+    elements.overlay.classList.remove('active');
+}
+
+// 保存配置
+function saveConfig() {
+    state.config.personality = elements.personality.value;
+    state.config.pathology = elements.pathology.value;
+    state.config.provider = elements.provider.value;
+    state.config.model = elements.model.value;
+    state.config.apiKey = elements.apiKey.value;
+
+    localStorage.setItem('limbic-flow-config', JSON.stringify(state.config));
+
+    alert('配置已保存！');
+    closeAllSidebars();
+}
+
+// 加载配置
+function loadConfig() {
+    const saved = localStorage.getItem('limbic-flow-config');
+    if (saved) {
+        state.config = JSON.parse(saved);
+        elements.personality.value = state.config.personality;
+        elements.pathology.value = state.config.pathology;
+        elements.provider.value = state.config.provider;
+        elements.model.value = state.config.model;
+        elements.apiKey.value = state.config.apiKey;
+    }
+}
+
+// 重置情绪
+function resetEmotion() {
+    state.emotion = {
+        pleasure: 50,
+        arousal: 50,
+        dominance: 50,
+        dopamine: 50,
+        cortisol: 50,
+        serotonin: 50
+    };
+    updateEmotionDisplay();
+    alert('情绪已重置！');
+}
+
+// 滚动到底部
+function scrollToBottom() {
+    elements.chat.scrollTop = elements.chat.scrollHeight;
+}
+
+// 获取时间
+function getTime() {
+    const now = new Date();
+    return now.getHours().toString().padStart(2, '0') + ':' + 
+           now.getMinutes().toString().padStart(2, '0');
+}
+
+// HTML 转义
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', init);
