@@ -161,6 +161,8 @@ async def get_config(
     """
     config = pipeline.config
     return {
+        "personality": "default",
+        "pathology": "none" if config.enable_depression == False else "depression",
         "llm_provider": config.llm_provider,
         "memory_limit": config.memory_limit,
         "use_sensitive_emotion": config.use_sensitive_emotion,
@@ -169,6 +171,54 @@ async def get_config(
         "enable_ptsd": config.enable_ptsd,
         "enable_hsp": config.enable_hsp,
     }
+
+
+@app.post("/config")
+async def update_config(
+    config_request: Dict[str, Any],
+    pipeline: LimbicFlowPipeline = Depends(get_pipeline),
+):
+    """
+    更新配置
+    
+    Request body:
+        personality: "default" | "gentle" | "playful" | "wise" | "energetic"
+        pathology: "none" | "depression" | "alzheimer" | "ptsd" | "hsp"
+    """
+    try:
+        personality = config_request.get("personality", "default")
+        pathology = config_request.get("pathology", "none")
+        
+        # 根据选择更新配置
+        if pathology == "none":
+            pipeline.config.enable_depression = False
+            pipeline.config.enable_alzheimer = False
+            pipeline.config.enable_ptsd = False
+            pipeline.config.enable_hsp = False
+        elif pathology == "depression":
+            pipeline.config.enable_depression = True
+            pipeline.config.enable_alzheimer = False
+            pipeline.config.enable_ptsd = False
+            pipeline.config.enable_hsp = False
+        elif pathology == "alzheimer":
+            pipeline.config.enable_depression = False
+            pipeline.config.enable_alzheimer = True
+            pipeline.config.enable_ptsd = False
+            pipeline.config.enable_hsp = False
+        elif pathology == "ptsd":
+            pipeline.config.enable_depression = False
+            pipeline.config.enable_alzheimer = False
+            pipeline.config.enable_ptsd = True
+            pipeline.config.enable_hsp = False
+        elif pathology == "hsp":
+            pipeline.config.enable_depression = False
+            pipeline.config.enable_alzheimer = False
+            pipeline.config.enable_ptsd = False
+            pipeline.config.enable_hsp = True
+        
+        return {"status": "success", "message": f"已切换到 {personality} 人格 + {pathology} 模式"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
