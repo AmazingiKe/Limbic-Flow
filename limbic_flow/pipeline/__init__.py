@@ -8,8 +8,13 @@ from limbic_flow.core.hippocampus import FileHippocampus
 from limbic_flow.core.amygdala import Amygdala
 from limbic_flow.core.articulation.motor_cortex import MotorCortex
 from limbic_flow.core.brain.processor import Brain
-from limbic_flow.middleware.pathology.base import PathologyMiddlewareManager, PathologyBase
+from limbic_flow.middleware.pathology import create_pathology_middleware
 from limbic_flow.core.ai.embedding import EmbeddingService
+from limbic_flow.core.neocortex import MockNeocortex
+from limbic_flow.core.config import LimbicConfig
+from limbic_flow.pipeline.config import PipelineConfig
+from limbic_flow.utils.logger import get_logger
+
 
 class LimbicFlowPipeline:
     """
@@ -17,25 +22,53 @@ class LimbicFlowPipeline:
     [场景] 协调各器官（感知、情绪、记忆、思考、表达）的数据流转
     [核心] 维护 CognitiveState 的生命周期
     """
-
-    def __init__(self, llm_provider: Optional[str] = None):
-        # 1. 核心器官实例化
+    
+    def __init__(
+        self,
+        config: PipelineConfig = None,
+        hippocampus: Optional[Any] = None,
+        amygdala: Optional[Any] = None,
+    ):
+        self.logger = get_logger("LimbicFlowPipeline")
+        self.config = config or PipelineConfig()
+        
+        # 1. 配置情绪系统
+        emotion_config = None
+        if self.config.use_sensitive_emotion:
+            emotion_config = LimbicConfig.sensitive()
+        
+        # 2. 核心器官实例化（支持注入，便于测试）
         self.embedding_service = EmbeddingService()
-        self.amygdala = Amygdala()
-        self.hippocampus = FileHippocampus()
-        self.brain = Brain(llm_provider)
-        self.motor_cortex = MotorCortex()
-
-        # 2. 中间件初始化
-        self.pathology_middleware = PathologyMiddlewareManager()
-
-        # 3. 辅助状态
+        self.amygdala = amygdala if amygdala is not None else Amygdala(config=emotion_config)
+        self.hippocampus = hippocampus if hippocampus is not None else FileHippocampus(
+            storage_path=self.config.memory_store_path
+        )
+        self.brain = Brain(self.config.llm_provider)
+        self.motor_cortex = MotorCortex(
+            base_wpm=self.config.base_wpm,
+            min_segment_length=self.config.min_segment_length,
+            max_segment_length=self.config.max_segment_length,
+        )
+        
+        # 3. 病理中间件
+        self.pathology_middleware = create_pathology_middleware(
+            enable_depression=self.config.enable_depression,
+            enable_alzheimer=self.config.enable_alzheimer,
+            enable_ptsd=self.config.enable_ptsd,
+            enable_hsp=self.config.enable_hsp,
+            depression_severity=self.config.depression_severity,
+            alzheimer_severity=self.config.alzheimer_severity,
+            ptsd_severity=self.config.ptsd_severity,
+            hsp_sensitivity=self.config.hsp_sensitivity,
+        )
+        
+        # 4. 新皮层（当前为 Mock，供认知重构使用语义知识）
+        self.neocortex = MockNeocortex()
+        
+        # 5. 辅助状态
         self.user_info = {}
         self._load_user_info_from_memory()
-
-    def register_pathology(self, pathology: PathologyBase):
-        """注册一个新的病理模式"""
-        self.pathology_middleware.register(pathology)
+        self.logger.info(f"Limbic-Flow Pipeline 初始化完成 (config: {'sensitive' if self.config.use_sensitive_emotion else 'default'})")
 
     def process_input_stream(self, user_input: str, context: Dict[str, Any] = None) -> Generator[ActionEvent, None, None]:
         """
@@ -52,15 +85,32 @@ class LimbicFlowPipeline:
         # 3. Amygdala (化学反应: 计算神经递质)
         state = self.amygdala.process(state)
         
-        # 4. Hippocampus (记忆检索)
+        # 4. 病理中间件扭曲查询（在检索前），再交给海马体检索
+        emotional_state = {
+            "pleasure": state.pad_vector["pleasure"],
+            "arousal": state.pad_vector["arousal"],
+            "dominance": state.pad_vector["dominance"],
+            "dopamine": state.neurotransmitters["dopamine"],
+            "cortisol": state.neurotransmitters["cortisol"],
+            "timestamp": state.timestamp,
+        }
         if state.query_vector is not None:
-            state.memories = self.hippocampus.retrieve_memories(state.query_vector, limit=5)
-            state.raw_memories = state.memories # Compatibility
-            
-        # 5. Pathology Middleware (病理扭曲)
+            query_for_retrieval = self.pathology_middleware.distort_query(
+                state.query_vector.copy(), emotional_state
+            )
+            state.memories = self.hippocampus.retrieve_memories(query_for_retrieval, limit=self.config.memory_limit)
+            state.raw_memories = state.memories
+        else:
+            state.memories = []
+            state.raw_memories = []
+
+        # 5. Pathology Middleware (病理扭曲记忆)
         state = self.pathology_middleware.process(state)
         
-        # 6. Brain/Neocortex (认知思考: 生成文本)
+        # 5.5 新皮层：为认知重构提供语义知识（当前 Mock 返回空）
+        state.context["semantic_knowledge"] = self._gather_semantic_knowledge(state)
+        
+        # 6. Brain (认知思考: 生成文本，含语义知识)
         state = self.brain.process(state)
         
         # 7. Motor Cortex (运动表达: 生成动作流)
@@ -104,6 +154,21 @@ class LimbicFlowPipeline:
         if "rain" in str(state.context) or "night" in str(state.context):
             state.environmental_pressure += 0.1
 
+    def _gather_semantic_knowledge(self, state: CognitiveState) -> List[Any]:
+        """从新皮层检索与当前输入相关的语义知识，供 Brain 写入 prompt。当前为 Mock，返回空列表。"""
+        parts: List[Any] = []
+        try:
+            rels = self.neocortex.retrieve_relationships()
+            if rels:
+                parts.append("关系知识: " + str(rels))
+            key = (state.user_input or "").strip()[:64] or "default"
+            val = self.neocortex.retrieve_knowledge(key)
+            if val is not None:
+                parts.append(val)
+        except Exception as e:
+            self.logger.debug(f"新皮层检索跳过: {e}")
+        return parts
+
     def _extract_user_info(self, user_input: str):
         # 跳过询问名字的问题
         name_question_patterns = [
@@ -125,7 +190,7 @@ class LimbicFlowPipeline:
                 name = match.group(1).strip()
                 if name and not any(sw in name for sw in ["什么", "怎么", "怎样", "吗", "?"]):
                     self.user_info["name"] = name
-                    print(f"✅ 提取到用户名字: {name}")
+                    self.logger.info(f"提取到用户名字: {name}")
                     break
 
     def _store_memory(self, state: CognitiveState):
@@ -159,7 +224,6 @@ class LimbicFlowPipeline:
     def _load_user_info_from_memory(self):
         """从记忆中加载用户信息"""
         try:
-            # 简化版：仅搜索“用户信息”
             query_vector = self.embedding_service.get_embedding("用户信息 名字")
             memories = self.hippocampus.retrieve_memories(query_vector, limit=5)
             
@@ -176,6 +240,6 @@ class LimbicFlowPipeline:
                 
                 if merged:
                     self.user_info = merged
-                    print(f"✅ 从记忆中加载用户信息: {self.user_info}")
+                    self.logger.info(f"从记忆中加载用户信息: {self.user_info}")
         except Exception as e:
-            print(f"加载用户信息失败: {str(e)}")
+            self.logger.error(f"加载用户信息失败: {str(e)}", exc_info=True)

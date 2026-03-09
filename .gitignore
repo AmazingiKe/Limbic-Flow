@@ -43,6 +43,7 @@ ENV/
 
 # Logs
 *.log
+logs/
 
 # OS
 .DS_Store
@@ -62,6 +63,8 @@ dmypy.json
 amygdala.db
 memory_store.json
 
-
+# Claude
 .claude/
-tests/
+
+# ReCode local database
+.recode

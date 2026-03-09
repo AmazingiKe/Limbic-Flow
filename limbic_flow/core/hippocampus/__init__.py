@@ -3,6 +3,7 @@ import numpy as np
 import json
 import os
 from typing import List, Dict, Any, Tuple
+from limbic_flow.utils.logger import get_logger
 
 class HippocampusInterface(ABC):
     """
@@ -110,6 +111,7 @@ class FileHippocampus(HippocampusInterface):
         Args:
             storage_path: 存储文件路径
         """
+        self.logger = get_logger("FileHippocampus")
         self.storage_path = storage_path
         self.memories = {}
         self.next_id = 0
@@ -125,8 +127,9 @@ class FileHippocampus(HippocampusInterface):
                     data = json.load(f)
                     self.memories = data.get('memories', {})
                     self.next_id = data.get('next_id', 0)
+                    self.logger.info(f"成功从文件加载 {len(self.memories)} 条记忆")
             except Exception as e:
-                print(f"加载记忆失败: {str(e)}")
+                self.logger.error(f"加载记忆失败: {str(e)}", exc_info=True)
                 self.memories = {}
                 self.next_id = 0
     
@@ -141,8 +144,9 @@ class FileHippocampus(HippocampusInterface):
             }
             with open(self.storage_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+            self.logger.debug(f"成功保存 {len(self.memories)} 条记忆到文件")
         except Exception as e:
-            print(f"保存记忆失败: {str(e)}")
+            self.logger.error(f"保存记忆失败: {str(e)}", exc_info=True)
     
     def store_memory(self, episodic_memory: Dict[str, Any]) -> str:
         """

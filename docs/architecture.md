@@ -98,13 +98,13 @@ flowchart TD
 
 ### 5. 存储层
 
-- **🦄 海马体**：向量数据库（Chroma/Milvus），存储情景记忆、事件向量、主观感受（PAD）和时间戳。
+- **🦄 海马体**：向量数据库（Chroma/Milvus），存储情景记忆、事件向量、主观感受（PAD）和时间戳。当前实现为 FileHippocampus（JSON 文件）。
 - **🌰 杏仁核**：SQLite 数据库，存储状态日志和生理指标曲线（PAD、多巴胺、皮质醇）。
-- **🧠 新皮层**：图数据库（Neo4j），存储语义知识、常识、事实和人际关系图谱。
+- **🧠 新皮层**：图数据库（Neo4j），存储语义知识、常识、事实和人际关系图谱。**当前实现为 MockNeocortex**，Pipeline 已接入并在认知重构前注入 `semantic_knowledge` 至 state，Brain 会将其写入 prompt；替换为真实图库后无需改 Pipeline 接口。
 
 ### 6. 外部层
 
-- **🌍 世界线**：提供现实环境信息的外部 API，如天气、新闻和日期。
+- **🌍 世界线**：提供现实环境信息的外部 API，如天气、新闻和日期。**当前由 `limbic_flow.core.location.LocationDetector` 部分承担**（地区、当地时间、天气等）；感知与 Brain 的 prompt 中已使用其输出。后续可增加薄封装层（如 `WorldLine` 接口）统一接入天气/新闻/日期等更多数据源，便于扩展。
 
 ## 数据流
 

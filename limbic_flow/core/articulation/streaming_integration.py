@@ -8,6 +8,7 @@ import time
 from typing import List, Callable, Optional, Dict, Any
 from .action_event import ActionEvent, ActionType
 from ..streaming import StreamingOutput
+from ...utils.logger import get_logger
 
 
 class ArticulationStreamingOutput(StreamingOutput):
@@ -31,6 +32,7 @@ class ArticulationStreamingOutput(StreamingOutput):
             enable_timing: 是否启用时间控制（模拟打字速度和停顿）
             enable_logging: 是否启用日志输出
         """
+        self.logger = get_logger("ArticulationStreamingOutput")
         self.action_callback = action_callback
         self.enable_timing = enable_timing
         self.enable_logging = enable_logging
@@ -84,7 +86,7 @@ class ArticulationStreamingOutput(StreamingOutput):
             action: 动作事件
         """
         if self.enable_logging:
-            print(f"[Articulation] {action.action_type.value}: {action.content[:50] if action.content else ''} (duration: {action.duration:.2f}s)")
+            self.logger.debug(f"[Articulation] {action.action_type.value}: {action.content[:50] if action.content else ''} (duration: {action.duration:.2f}s)")
         
         # 调用回调函数
         self.action_callback(action)
