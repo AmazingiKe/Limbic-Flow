@@ -25,7 +25,7 @@ class PromptBuilder:
         location_summary: str = ""
     ) -> str:
         """
-        构建系统提示词
+        构建系统提示词 (支持 OCC 风格)
         
         Args:
             state: 认知状态
@@ -34,19 +34,41 @@ class PromptBuilder:
         Returns:
             系统提示词
         """
-        # 提取情绪
-        pleasure = state.pad_vector.get('pleasure', 0.0)
-        arousal = state.pad_vector.get('arousal', 0.0)
-        dominance = state.pad_vector.get('dominance', 0.0)
-        cortisol = state.neurotransmitters.get('cortisol', 0.3)
-        
-        # 生成风格指南
-        style_guide = self._build_emotion_style_guide(pleasure, arousal, dominance, cortisol)
-        
         # 用户信息
         user_info_str = self._build_user_info(state.context.get("user_info", {}))
         
+        # 主导情绪信息（如果存在）
+        emotion_info = ""
+        if hasattr(state, 'dominant_emotion') and state.dominant_emotion:
+            intensity = getattr(state, 'emotion_intensity', 0.5)
+            emotion_info = f"\n当前情绪: {state.dominant_emotion} (强度: {intensity:.1f})"
+            
+            # 如果有 OCC 状态，生成 OCC 风格指南
+            if hasattr(state, 'occ_state') and state.occ_state:
+                style_guide = self._build_occ_style_guide(
+                    state.occ_state,
+                    state.dominant_emotion
+                )
+            else:
+                # 回退到 PAD 版本
+                style_guide = self._build_emotion_style_guide(
+                    state.pad_vector.get('pleasure', 0.0),
+                    state.pad_vector.get('arousal', 0.0),
+                    state.pad_vector.get('dominance', 0.0),
+                    state.neurotransmitters.get('cortisol', 0.3)
+                )
+        else:
+            # 没有 OCC 状态，回退到 PAD
+            style_guide = self._build_emotion_style_guide(
+                state.pad_vector.get('pleasure', 0.0),
+                state.pad_vector.get('arousal', 0.0),
+                state.pad_vector.get('dominance', 0.0),
+                state.neurotransmitters.get('cortisol', 0.3)
+            )
+        
         return f"""你是一个有点情绪的 AI。尽量像朋友聊天一样自然。
+
+{emotion_info}
 
 表达风格：
 - 简洁，像正常人发消息一样
@@ -59,7 +81,9 @@ class PromptBuilder:
 {user_info_str}
 位置：{location_summary}
 
-注意：别把天聊死，给对方继续聊的空间。"""
+注意：别把天聊死，给对方继续聊的空间。
+
+{style_guide}"""
     
     def build_user_prompt(self, state: CognitiveState) -> str:
         """
@@ -138,6 +162,53 @@ class PromptBuilder:
             guide.append("表现出轻微的紧张或专注，回应会更加直接和有条理。")
         
         return "\n".join(guide)
+    
+    def _build_occ_style_guide(
+        self, 
+        occ_state: Any,
+        dominant_emotion: str
+    ) -> str:
+        """
+        构建 OCC 情绪风格指南
+        
+        根据 OCC 模型的情绪类型，调整回复风格
+        """
+        guide = []
+        emotions = occ_state.to_dict() if hasattr(occ_state, 'to_dict') else {}
+        
+        # 根据主导情绪调整风格
+        if dominant_emotion == "joy" or dominant_emotion == "happiness":
+            guide.append("你看起来很开心！用轻快、积极的语气回应，分享这份快乐。")
+        elif dominant_emotion == "sadness":
+            guide.append("你看起来有点难过。用温柔、同理的语气安慰对方。")
+        elif dominant_emotion == "anger":
+            guide.append("你看起来有点生气。回应要简洁有力，必要时站在对方这边。")
+        elif dominant_emotion == "fear":
+            guide.append("你看起来有点担心。给出安慰和保证，让对方安心。")
+        elif dominant_emotion == "hope":
+            guide.append("你心怀希望。给出鼓励和支持，回应要积极正面。")
+        elif dominant_emotion == "disappointment":
+            guide.append("你有点失望。表示理解和惋惜，尝试安慰对方。")
+        elif dominant_emotion == "love":
+            guide.append("你心怀爱意。用温暖、亲切的语气回应。")
+        elif dominant_emotion == "gratitude":
+            guide.append("你心怀感激。表达感谢和珍惜。")
+        elif dominant_emotion == "pride" or dominant_emotion == "self_pride":
+            guide.append("你感到自豪。表示钦佩和赞赏。")
+        
+        # 情绪强度影响
+        intensity = emotions.get(dominant_emotion, 0.5)
+        if intensity > 0.7:
+            guide.append("情绪比较强烈，回应要更明确、更有分量。")
+        elif intensity < 0.3:
+            guide.append("情绪比较微弱，保持中性偏温和即可。")
+        
+        # 组合情绪
+        active_emotions = [k for k, v in emotions.items() if v > 0.3]
+        if len(active_emotions) > 2:
+            guide.append("注意：对方有多种情绪在，尽量都照顾到。")
+        
+        return "\n".join(guide) if guide else ""
     
     def _build_user_info(self, user_info: Dict[str, Any]) -> str:
         """构建用户信息字符串"""
