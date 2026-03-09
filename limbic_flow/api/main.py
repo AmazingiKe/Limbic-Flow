@@ -1,6 +1,7 @@
 import json
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from limbic_flow.pipeline import LimbicFlowPipeline
@@ -11,6 +12,15 @@ app = FastAPI(
     title="Limbic-Flow API", 
     description="计算精神病学引擎 API",
     version="0.2.0"
+)
+
+# 添加 CORS 支持
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 默认单例，可通过 Depends 在测试中覆盖

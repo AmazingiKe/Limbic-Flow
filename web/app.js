@@ -1,6 +1,6 @@
 // Limbic-Flow Chat Frontend
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'http://localhost:8001';
 
 class ChatApp {
     constructor() {
@@ -57,6 +57,7 @@ class ChatApp {
             });
             
             const data = await response.json();
+            console.log('API Response:', data);
             
             // 移除加载消息
             loadingMsg.remove();
@@ -64,7 +65,7 @@ class ChatApp {
             // 添加机器人回复
             if (data.actions && data.actions.length > 0) {
                 const botResponse = data.actions
-                    .filter(a => a.action_type === 'speak')
+                    .filter(a => a.action === 'message')
                     .map(a => a.content)
                     .join('');
                 
