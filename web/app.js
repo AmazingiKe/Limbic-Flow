@@ -217,7 +217,7 @@ function addMessage(text, sender) {
     const messageEl = document.createElement('div');
     messageEl.className = `message ${sender}`;
     messageEl.innerHTML = `
-        <div class="message-avatar">${sender === 'user' ? '👤' : '🧠'}</div>
+        <div class="message-avatar">${sender === 'user' ? '👤' : '🦊'}</div>
         <div class="message-content">
             <div class="message-bubble">${escapeHtml(text)}</div>
             <span class="message-time">${getTime()}</span>
@@ -238,7 +238,7 @@ function showTyping() {
     typingEl.className = 'message ai';
     typingEl.id = 'typing-indicator';
     typingEl.innerHTML = `
-        <div class="message-avatar">🧠</div>
+        <div class="message-avatar">🦊</div>
         <div class="typing-indicator">
             <div class="typing-dot"></div>
             <div class="typing-dot"></div>
