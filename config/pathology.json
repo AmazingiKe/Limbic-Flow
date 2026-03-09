@@ -1,0 +1,92 @@
+{
+    "pathologies": {
+        "depression": {
+            "enabled": false,
+            "name": "抑郁模式",
+            "description": "情绪低落，对正面事件反应减弱",
+            "rules": [
+                {
+                    "type": "memory_filter",
+                    "condition": {
+                        "emotion": "joy",
+                        "threshold": 0.3
+                    },
+                    "action": "suppress",
+                    "probability": 0.8
+                },
+                {
+                    "type": "response_modifier",
+                    "condition": {
+                        "pleasure": ">0.2"
+                    },
+                    "action": "reduce",
+                    "factor": 0.5
+                }
+            ],
+            "parameters": {
+                "severity": 0.5,
+                "anhedonia_threshold": 0.3
+            }
+        },
+        "alzheimer": {
+            "enabled": false,
+            "name": "阿尔茨海默模式",
+            "description": "记忆混乱，近期记忆受损",
+            "rules": [
+                {
+                    "type": "memory_noise",
+                    "condition": {
+                        "recency": "<86400"
+                    },
+                    "action": "block",
+                    "probability": 0.7
+                },
+                {
+                    "type": "query_distortion",
+                    "action": "gaussian_noise",
+                    "std": 0.2
+                }
+            ],
+            "parameters": {
+                "severity": 0.5,
+                "recent_memory_decay": 0.8
+            }
+        },
+        "ptsd": {
+            "enabled": false,
+            "name": "创伤后应激障碍",
+            "description": "触发词引发创伤记忆闪回",
+            "rules": [
+                {
+                    "type": "trigger_word",
+                    "triggers": ["去世", "死亡", "车祸", "事故", "伤害", "fire", "death", "accident"],
+                    "action": "inject_trauma",
+                    "probability": 0.6
+                }
+            ],
+            "parameters": {
+                "severity": 0.5,
+                "trigger_sensitivity": 0.3
+            }
+        },
+        "hsp": {
+            "enabled": false,
+            "name": "高敏感人格",
+            "description": "情绪反应放大",
+            "rules": [
+                {
+                    "type": "emotion_amplify",
+                    "condition": {
+                        "arousal": ">0.1"
+                    },
+                    "action": "amplify",
+                    "factor": 1.5
+                }
+            ],
+            "parameters": {
+                "sensitivity": 0.5,
+                "threshold": 0.1
+            }
+        }
+    }
+}
