@@ -50,6 +50,54 @@
             position: relative;
         }
 
+        /* 左侧情感标签 */
+        .mood-tag {
+            position: fixed;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 50;
+        }
+
+        .mood-tag-item {
+            padding: 8px 14px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+
+        .mood-tag-item.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            transform: scale(1.05);
+        }
+
+        .mood-tag-item::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .mood-tag-item.joy::before { background: #ffd60a; }
+        .mood-tag-item.sad::before { background: #64d2ff; }
+        .mood-tag-item.angry::before { background: #ff453a; }
+        .mood-tag-item.calm::before { background: #30d158; }
+        .mood-tag-item.excited::before { background: #ff9f0a; }
+        .mood-tag-item.bored::before { background: #8e8e93; }
+
         /* 顶部栏 */
         .header {
             display: flex;
@@ -560,6 +608,16 @@
 </head>
 <body>
     <div class="gradient-bg"></div>
+    
+    <!-- 左侧情感标签 -->
+    <div class="mood-tag" id="moodTag">
+        <div class="mood-tag-item joy active" data-mood="joy">轻松</div>
+        <div class="mood-tag-item sad" data-mood="sad">难过</div>
+        <div class="mood-tag-item angry" data-mood="angry">生气</div>
+        <div class="mood-tag-item calm" data-mood="calm">平静</div>
+        <div class="mood-tag-item excited" data-mood="excited">兴奋</div>
+        <div class="mood-tag-item bored" data-mood="bored">无聊</div>
+    </div>
     
     <div class="app">
         <!-- 顶部栏 -->

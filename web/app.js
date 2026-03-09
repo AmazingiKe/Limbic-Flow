@@ -226,6 +226,9 @@ function addMessage(text, sender) {
 
     elements.chat.appendChild(messageEl);
     scrollToBottom();
+    
+    // 更新情感标签
+    updateMoodTag();
 }
 
 // 显示打字动画
@@ -389,6 +392,41 @@ function updateEmotionDisplay() {
 function updateAvatar() {
     const emotionIcon = getEmotionIcon();
     elements.avatar.textContent = emotionIcon;
+    updateMoodTag();
+}
+
+// 获取当前对话情绪标签
+function getCurrentMood() {
+    const { pleasure, arousal } = state.emotion;
+    
+    // 根据情绪值判断当前对话氛围
+    if (arousal > 70) {
+        if (pleasure > 50) return 'excited';
+        if (pleasure < 30) return 'angry';
+        return 'excited';
+    }
+    if (arousal < 30) {
+        if (pleasure < 30) return 'sad';
+        return 'calm';
+    }
+    if (pleasure > 60) return 'joy';
+    if (pleasure < 30) return 'sad';
+    if (arousal > 50) return 'excited';
+    return 'calm';
+}
+
+// 更新情感标签
+function updateMoodTag() {
+    const mood = getCurrentMood();
+    const items = document.querySelectorAll('.mood-tag-item');
+    
+    items.forEach(item => {
+        if (item.dataset.mood === mood) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
 }
 
 // 获取情绪图标
