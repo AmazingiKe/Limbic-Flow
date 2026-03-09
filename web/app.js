@@ -180,22 +180,81 @@ function hideTyping() {
 
 // 生成响应
 function generateResponse(userText) {
-    const responses = [
-        "我理解你的感受。让我想想...",
-        "这是一个很有趣的话题。你为什么会这么认为呢？",
-        "我明白你的意思了。",
-        "感谢你分享这些。你希望我怎样帮助你？",
-        "我在这里倾听。继续说吧。",
-        "这让我有了新的思考角度。",
-        "我感受到了你的情绪。",
-        "让我们一起探讨这个问题。"
-    ];
-
-    const response = responses[Math.floor(Math.random() * responses.length)];
+    const text = userText.toLowerCase();
+    let response = '';
+    let emotionChange = { pleasure: 0, arousal: 0 };
+    
+    // 问题类
+    if (text.includes('?') || text.includes('吗') || text.includes('呢') || text.includes('什么') || text.includes('why') || text.includes('how')) {
+        const questions = [
+            "你怎么会想问这个？",
+            "这个问题有点意思",
+            "你在考我吗？😏",
+            "你想聊这个？",
+            "有意思，说来听听"
+        ];
+        response = questions[Math.floor(Math.random() * questions.length)];
+    }
+    // 问候类
+    else if (text.includes('你好') || text.includes('hi') || text.includes('hello') || text.includes('在吗')) {
+        response = "嘿！找我干嘛？";
+        emotionChange.arousal = 10;
+    }
+    // 负面/吐槽
+    else if (text.includes('傻') || text.includes('蠢') || text.includes('sb') || text.includes('垃圾') || text.includes('fuck')) {
+        const angry = [
+            "喂过分了哦 😤",
+            "你是不是对AI有什么误解",
+            "我招你惹你了😂",
+            "好好说话行不行"
+        ];
+        response = angry[Math.floor(Math.random() * angry.length)];
+        emotionChange.arousal = 20;
+        emotionChange.pleasure = -10;
+    }
+    // 开心/正面
+    else if (text.includes('好') || text.includes('棒') || text.includes('厉害') || text.includes('牛') || text.includes('好')) {
+        response = "谬赞了哈哈 😊";
+        emotionChange.pleasure = 15;
+    }
+    // 沉默/单字
+    else if (text.length <= 2) {
+        const short = [
+            "嗯？",
+            "说啥呢",
+            "你在暗示什么",
+            "..."
+        ];
+        response = short[Math.floor(Math.random() * short.length)];
+    }
+    // 感叹
+    else if (text.includes('!') || text.includes('！')) {
+        response = "这么激动干啥";
+        emotionChange.arousal = 15;
+    }
+    // 默认 - 理解内容
+    else {
+        const understanding = [
+            "然后呢？",
+            "我在听",
+            "嗯...所以呢？",
+            "然后怎么样了？",
+            "继续说，我在听"
+        ];
+        response = understanding[Math.floor(Math.random() * understanding.length)];
+        emotionChange.arousal = 5;
+    }
+    
+    // 添加消息
     addMessage(response, 'ai');
-
-    // 根据用户输入更新情绪
-    updateEmotionFromText(userText);
+    
+    // 应用情绪变化
+    state.emotion.pleasure = Math.max(0, Math.min(100, state.emotion.pleasure + emotionChange.pleasure));
+    state.emotion.arousal = Math.max(0, Math.min(100, state.emotion.arousal + emotionChange.arousal));
+    
+    // 更新显示
+    updateEmotionDisplay();
+    updateAvatar();
 }
 
 // 从文本更新情绪
