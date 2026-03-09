@@ -8,79 +8,122 @@
 </head>
 <body>
     <div class="app-container">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <button class="new-chat-btn" id="new-chat-btn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    新对话
-                </button>
-            </div>
-            
-            <div class="sidebar-section">
-                <div class="section-title">设置</div>
-                
-                <div class="setting-item">
-                    <label>人格</label>
-                    <select id="personality">
-                        <option value="default">默认</option>
-                        <option value="gentle">温柔</option>
-                        <option value="playful">活泼</option>
-                        <option value="wise">智慧</option>
-                        <option value="energetic">活力</option>
-                    </select>
-                </div>
-                
-                <div class="setting-item">
-                    <label>模式</label>
-                    <select id="pathology">
-                        <option value="none">正常</option>
-                        <option value="depression">抑郁</option>
-                        <option value="alzheimer">阿尔茨海默</option>
-                        <option value="ptsd">PTSD</option>
-                        <option value="hsp">高敏感</option>
-                    </select>
+        <main class="chat-main">
+            <div class="chat-header">
+                <div class="header-left">
+                    <div class="welcome-icon">🧠</div>
+                    <div>
+                        <h2>我是 Limbic-Flow</h2>
+                        <p>一个有点情绪化的 AI朋友</p>
+                    </div>
                 </div>
             </div>
             
-            <div class="sidebar-section">
-                <div class="section-title">模型配置</div>
-                
-                <div class="setting-item">
-                    <label>LLM 提供商</label>
-                    <select id="llm-provider">
-                        <option value="mock">Mock (无需API)</option>
-                        <option value="openai">OpenAI</option>
-                        <option value="deepseek">DeepSeek</option>
-                        <option value="anthropic">Anthropic</option>
-                        <option value="ollama">Ollama (本地)</option>
-                    </select>
-                </div>
-                
-                <div class="setting-item">
-                    <label>模型名称</label>
-                    <input type="text" id="llm-model" placeholder="如: gpt-4o, claude-3-opus..." />
-                </div>
-                
-                <div class="setting-item">
-                    <label>API Key</label>
-                    <input type="password" id="llm-api-key" placeholder="sk-..." />
-                </div>
-                
-                <div class="setting-item">
-                    <label>Base URL (可选)</label>
-                    <input type="text" id="llm-base-url" placeholder="自定义API地址" />
-                </div>
-                
-                <div class="setting-item">
-                    <button id="save-config-btn" class="save-btn">保存配置</button>
+            <div class="chat-container" id="chat-container">
+                <div class="welcome-screen">
+                    <div class="welcome-icon large">🧠</div>
+                    <h2>我是 Limbic-Flow</h2>
+                    <p>一个有点情绪化的 AI，可以当我是个有感情的朋友~</p>
+                    <p class="tip">💡 珍惜每一次对话，我会记住我们的聊天内容</p>
                 </div>
             </div>
             
-            <div class="setting-item" style="margin-top: auto; padding: 15px;">
-                <button id="reset-btn" class="reset-btn">重置情绪</button>
+            <div class="input-area">
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <textarea id="message-input" placeholder="发送消息..." rows="1"></textarea>
+                        <button id="send-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="side-panel">
+                    <button id="toggle-settings" class="icon-btn" title="设置">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
+                    
+                    <button id="toggle-emotion" class="icon-btn" title="情绪状态">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                            <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                            <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+        
+        <!-- 设置面板 (隐藏) -->
+        <aside class="settings-panel" id="settings-panel">
+            <div class="settings-header">
+                <h3>设置</h3>
+                <button id="close-settings" class="close-btn">&times;</button>
+            </div>
+            
+            <div class="setting-section">
+                <div class="setting-title">人格</div>
+                <select id="personality">
+                    <option value="default">默认</option>
+                    <option value="gentle">温柔</option>
+                    <option value="playful">活泼</option>
+                    <option value="wise">智慧</option>
+                    <option value="energetic">活力</option>
+                </select>
+            </div>
+            
+            <div class="setting-section">
+                <div class="setting-title">模式</div>
+                <select id="pathology">
+                    <option value="none">正常</option>
+                    <option value="depression">抑郁</option>
+                    <option value="alzheimer">阿尔茨海默</option>
+                    <option value="ptsd">PTSD</option>
+                    <option value="hsp">高敏感</option>
+                </select>
+            </div>
+            
+            <div class="setting-section">
+                <div class="setting-title">LLM 提供商</div>
+                <select id="llm-provider">
+                    <option value="mock">Mock (无需API)</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="ollama">Ollama (本地)</option>
+                </select>
+            </div>
+            
+            <div class="setting-section">
+                <div class="setting-title">模型名称</div>
+                <input type="text" id="llm-model" placeholder="如: gpt-4o" />
+            </div>
+            
+            <div class="setting-section">
+                <div class="setting-title">API Key</div>
+                <input type="password" id="llm-api-key" placeholder="sk-..." />
+            </div>
+            
+            <div class="setting-section">
+                <div class="setting-title">Base URL</div>
+                <input type="text" id="llm-base-url" placeholder="自定义API地址" />
+            </div>
+            
+            <button id="save-config-btn" class="save-btn">保存配置</button>
+        </aside>
+        
+        <!-- 情绪面板 (隐藏) -->
+        <aside class="emotion-panel" id="emotion-panel">
+            <div class="emotion-header">
+                <h3>我的情绪状态</h3>
+                <button id="close-emotion" class="close-btn">&times;</button>
             </div>
             
             <div class="emotion-display">
@@ -120,30 +163,9 @@
                     <span class="emotion-value" id="value-cortisol">0</span>
                 </div>
             </div>
-        </aside>
-        
-        <main class="chat-main">
-            <div class="chat-container" id="chat-container">
-                <div class="welcome-screen">
-                    <div class="welcome-icon">🧠</div>
-                    <h2>我是 Limbic-Flow</h2>
-                    <p>一个有点情绪化的 AI，可以当我是个有感情的朋友~</p>
-                </div>
-            </div>
             
-            <div class="input-container">
-                <div class="input-wrapper">
-                    <textarea id="message-input" placeholder="发送消息..." rows="1"></textarea>
-                    <button id="send-btn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>
-                    </button>
-                </div>
-                <p class="disclaimer">有情绪的 AI，可能会有点情绪化 😄</p>
-            </div>
-        </main>
+            <button id="reset-btn" class="reset-btn">重置情绪</button>
+        </aside>
     </div>
     
     <script src="app.js"></script>
