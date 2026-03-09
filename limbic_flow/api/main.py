@@ -1,43 +1,77 @@
-from fastapi import FastAPI, HTTPException
+import json
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from limbic_flow.pipeline import LimbicFlowPipeline
 
 app = FastAPI(title="Limbic-Flow API", description="计算精神病学引擎 API")
 
-# 初始化 Limbic-Flow 管道
-pipeline = LimbicFlowPipeline()
+# 默认单例，可通过 Depends 在测试中覆盖
+_default_pipeline: Optional[LimbicFlowPipeline] = None
+
+
+def get_pipeline() -> LimbicFlowPipeline:
+    """依赖注入：返回 Pipeline 实例，便于单测或多配置替换。"""
+    global _default_pipeline
+    if _default_pipeline is None:
+        _default_pipeline = LimbicFlowPipeline()
+    return _default_pipeline
+
 
 # 请求模型
 class InputRequest(BaseModel):
     user_input: str
     context: Optional[Dict[str, Any]] = None
 
+
 @app.post("/process")
-async def process_input(request: InputRequest):
+async def process_input(
+    request: InputRequest,
+    pipeline: LimbicFlowPipeline = Depends(get_pipeline),
+):
     """
     处理用户输入并返回动作流
-    
+
     Args:
         request: 包含用户输入和上下文的请求
-    
+
     Returns:
         Dict: 包含动作流的响应
     """
     try:
-        # 获取动作生成器
         action_generator = pipeline.process_input(request.user_input, request.context)
-        
-        # 收集所有动作
-        actions = []
-        for action in action_generator:
-            actions.append(action.to_dict())
-            
+        actions = [action.to_dict() for action in action_generator]
         return {"actions": actions}
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"处理请求时出错: {str(e)}")
+
+
+@app.post("/process/stream")
+async def process_input_stream(
+    request: InputRequest,
+    pipeline: LimbicFlowPipeline = Depends(get_pipeline),
+):
+    """
+    处理用户输入并以 SSE 流式返回动作事件（ActionEvent）。
+    每行格式: data: {json}\n\n
+    """
+    def event_generator():
+        try:
+            for action in pipeline.process_input(request.user_input, request.context):
+                payload = json.dumps(action.to_dict(), ensure_ascii=False)
+                yield f"data: {payload}\n\n"
+        except Exception as e:
+            yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 
 @app.get("/health")
 async def health_check():

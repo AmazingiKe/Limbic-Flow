@@ -128,6 +128,14 @@ class Brain:
                     prompt += f"{i}. {memory}\n"
             prompt += "\n"
         
+        # 新皮层提供的语义知识（当前多为空，由 Pipeline 注入）
+        semantic = state.context.get("semantic_knowledge") or []
+        if semantic:
+            prompt += "语义知识：\n"
+            for item in semantic:
+                prompt += f"- {item}\n"
+            prompt += "\n"
+        
         prompt += "请根据用户的输入和用户信息，给出一个自然、真实的回应。\n"
         return prompt
 

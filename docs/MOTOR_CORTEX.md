@@ -100,28 +100,27 @@ executor = create_articulation_executor(
 executor.execute(actions)
 ```
 
-### 与情绪引擎集成
+### 与情绪状态集成
+
+在 Pipeline 内，PAD 与神经递质由 **Amygdala** 统一计算（含半衰期衰减），MotorCortex 直接使用 `state.pad_vector` 与 `state.neurotransmitters`。以下为**独立使用**运动皮层时，用 EmotionEngine 提供 PAD 的示例（非 Pipeline 场景）：
 
 ```python
 from limbic_flow.core.articulation import MotorCortex
 from limbic_flow.core.emotion_engine import EmotionEngine
 
-# 创建情绪引擎和运动皮层
+# 独立使用：情绪引擎 + 运动皮层
 emotion_engine = EmotionEngine()
 motor = MotorCortex(base_wpm=60)
 
-# 更新情绪状态
 emotion_engine.update(input_pleasure=0.3, input_arousal=0.5, input_dominance=-0.2)
 emotion_state = emotion_engine.get_state()
 
-# 转换为 PAD 格式
 pad_state = {
     "pleasure": emotion_state["pleasure"],
     "arousal": emotion_state["arousal"],
     "dominance": emotion_state["dominance"]
 }
 
-# 生成动作流
 text = "我觉得这个想法很有意思！"
 actions = motor.articulate(text, pad_state)
 ```

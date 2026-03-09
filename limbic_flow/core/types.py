@@ -24,16 +24,38 @@ class CognitiveState:
     environmental_pressure: float = 0.0 # 环境压力
     
     # Memory Channel (记忆通道)
-    query_vector: Optional[Any] = None # numpy array
-    memories: List[Dict[str, Any]] = field(default_factory=list) # Renamed from raw_memories? User used 'memories'
-    raw_memories: List[Dict[str, Any]] = field(default_factory=list) # Keep for compatibility or use user's name
+    query_vector: Optional[Any] = None  # numpy array
+    memories: List[Dict[str, Any]] = field(default_factory=list)  # 主字段；raw_memories 为别名
     distorted_memories: List[Dict[str, Any]] = field(default_factory=list)
-    
+
     # Expression Channel (表达通道)
-    introspection: str = "" # 思维链/内省
-    final_response_text: str = "" # 最终回复文本
-    final_text: str = "" # Alias for final_response_text (requested by refactoring plan)
-    content: str = "" # Keep for compatibility, alias to final_response_text?
-    
+    introspection: str = ""
+    final_response_text: str = ""  # 主字段；final_text / content 为别名
+
     # Action Channel (动作通道)
-    action_queue: List['ActionEvent'] = field(default_factory=list)
+    action_queue: List["ActionEvent"] = field(default_factory=list)
+
+    @property
+    def raw_memories(self) -> List[Dict[str, Any]]:
+        """与 memories 同源，供病理中间件等读取。"""
+        return self.memories
+
+    @raw_memories.setter
+    def raw_memories(self, value: List[Dict[str, Any]]) -> None:
+        self.memories = value
+
+    @property
+    def final_text(self) -> str:
+        return self.final_response_text
+
+    @final_text.setter
+    def final_text(self, value: str) -> None:
+        self.final_response_text = value
+
+    @property
+    def content(self) -> str:
+        return self.final_response_text
+
+    @content.setter
+    def content(self, value: str) -> None:
+        self.final_response_text = value

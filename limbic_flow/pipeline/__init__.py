@@ -10,7 +10,9 @@ from limbic_flow.core.articulation.motor_cortex import MotorCortex
 from limbic_flow.core.brain.processor import Brain
 from limbic_flow.middleware.pathology import BasePathologyMiddleware, DepressionPathology, AlzheimerPathology
 from limbic_flow.core.ai.embedding import EmbeddingService
+from limbic_flow.core.neocortex import MockNeocortex
 from limbic_flow.utils.logger import get_logger
+
 
 class LimbicFlowPipeline:
     """
@@ -19,12 +21,17 @@ class LimbicFlowPipeline:
     [核心] 维护 CognitiveState 的生命周期
     """
     
-    def __init__(self, llm_provider: Optional[str] = None):
+    def __init__(
+        self,
+        llm_provider: Optional[str] = None,
+        hippocampus: Optional[Any] = None,
+        amygdala: Optional[Any] = None,
+    ):
         self.logger = get_logger("LimbicFlowPipeline")
-        # 1. 核心器官实例化
+        # 1. 核心器官实例化（支持注入，便于测试）
         self.embedding_service = EmbeddingService()
-        self.amygdala = Amygdala()
-        self.hippocampus = FileHippocampus()
+        self.amygdala = amygdala if amygdala is not None else Amygdala()
+        self.hippocampus = hippocampus if hippocampus is not None else FileHippocampus()
         self.brain = Brain(llm_provider)
         self.motor_cortex = MotorCortex()
         
@@ -32,6 +39,9 @@ class LimbicFlowPipeline:
         self.pathology_middleware = BasePathologyMiddleware()
         self.pathology_middleware.add_pathology(DepressionPathology())
         self.pathology_middleware.add_pathology(AlzheimerPathology())
+        
+        # 新皮层（当前为 Mock，供认知重构使用语义知识）
+        self.neocortex = MockNeocortex()
         
         # 3. 辅助状态
         self.user_info = {}
@@ -53,15 +63,32 @@ class LimbicFlowPipeline:
         # 3. Amygdala (化学反应: 计算神经递质)
         state = self.amygdala.process(state)
         
-        # 4. Hippocampus (记忆检索)
+        # 4. 病理中间件扭曲查询（在检索前），再交给海马体检索
+        emotional_state = {
+            "pleasure": state.pad_vector["pleasure"],
+            "arousal": state.pad_vector["arousal"],
+            "dominance": state.pad_vector["dominance"],
+            "dopamine": state.neurotransmitters["dopamine"],
+            "cortisol": state.neurotransmitters["cortisol"],
+            "timestamp": state.timestamp,
+        }
         if state.query_vector is not None:
-            state.memories = self.hippocampus.retrieve_memories(state.query_vector, limit=5)
-            state.raw_memories = state.memories # Compatibility
-            
-        # 5. Pathology Middleware (病理扭曲)
+            query_for_retrieval = self.pathology_middleware.distort_query(
+                state.query_vector.copy(), emotional_state
+            )
+            state.memories = self.hippocampus.retrieve_memories(query_for_retrieval, limit=5)
+            state.raw_memories = state.memories
+        else:
+            state.memories = []
+            state.raw_memories = []
+
+        # 5. Pathology Middleware (病理扭曲记忆)
         state = self.pathology_middleware.process(state)
         
-        # 6. Brain/Neocortex (认知思考: 生成文本)
+        # 5.5 新皮层：为认知重构提供语义知识（当前 Mock 返回空）
+        state.context["semantic_knowledge"] = self._gather_semantic_knowledge(state)
+        
+        # 6. Brain (认知思考: 生成文本，含语义知识)
         state = self.brain.process(state)
         
         # 7. Motor Cortex (运动表达: 生成动作流)
@@ -104,6 +131,22 @@ class LimbicFlowPipeline:
         # 环境压力 (模拟)
         if "rain" in str(state.context) or "night" in str(state.context):
             state.environmental_pressure += 0.1
+
+    def _gather_semantic_knowledge(self, state: CognitiveState) -> List[Any]:
+        """从新皮层检索与当前输入相关的语义知识，供 Brain 写入 prompt。当前为 Mock，返回空列表。"""
+        parts: List[Any] = []
+        try:
+            # 可按需用 state.user_input 做 key 或关系查询；Mock 无数据
+            rels = self.neocortex.retrieve_relationships()
+            if rels:
+                parts.append("关系知识: " + str(rels))
+            key = (state.user_input or "").strip()[:64] or "default"
+            val = self.neocortex.retrieve_knowledge(key)
+            if val is not None:
+                parts.append(val)
+        except Exception as e:
+            self.logger.debug(f"新皮层检索跳过: {e}")
+        return parts
 
     def _extract_user_info(self, user_input: str):
         # 跳过询问名字的问题
