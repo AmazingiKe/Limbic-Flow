@@ -372,18 +372,13 @@ function updateEmotionFromText(text) {
     updateAvatar();
 }
 
-// 更新情绪显示
+// 更新情绪显示 - 简化版
 function updateEmotionDisplay() {
-    const emotionMain = document.getElementById('emotion-main');
-    const emotionArousal = document.getElementById('emotion-arousal');
-    const emotionDominance = document.getElementById('emotion-dominance');
-    const emotionDopamine = document.getElementById('emotion-dopamine');
-
-    if (emotionMain) emotionMain.textContent = Math.round(state.emotion.pleasure);
-    if (emotionArousal) emotionArousal.textContent = Math.round(state.emotion.arousal);
-    if (emotionDominance) emotionDominance.textContent = Math.round(state.emotion.dominance);
-    if (emotionDopamine) emotionDopamine.textContent = Math.round(state.emotion.dopamine);
-
+    const emotionIcon = document.getElementById('emotion-icon');
+    if (emotionIcon) {
+        emotionIcon.textContent = getEmotionIcon();
+    }
+    
     // 更新头像
     updateAvatar();
 }
