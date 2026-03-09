@@ -4,8 +4,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from limbic_flow.pipeline import LimbicFlowPipeline
+from limbic_flow.pipeline.config import PipelineConfig
+from limbic_flow.core.amygdala import Amygdala
 
-app = FastAPI(title="Limbic-Flow API", description="计算精神病学引擎 API")
+app = FastAPI(
+    title="Limbic-Flow API", 
+    description="计算精神病学引擎 API",
+    version="0.2.0"
+)
 
 # 默认单例，可通过 Depends 在测试中覆盖
 _default_pipeline: Optional[LimbicFlowPipeline] = None
@@ -23,6 +29,10 @@ def get_pipeline() -> LimbicFlowPipeline:
 class InputRequest(BaseModel):
     user_input: str
     context: Optional[Dict[str, Any]] = None
+
+
+class ConfigRequest(BaseModel):
+    config: Dict[str, Any]
 
 
 @app.post("/process")
@@ -81,7 +91,85 @@ async def health_check():
     Returns:
         Dict[str, str]: 健康状态
     """
-    return {"status": "healthy"}
+    return {"status": "healthy", "version": "0.2.0"}
+
+
+@app.get("/emotion/history")
+async def get_emotion_history(
+    limit: int = 10,
+    pipeline: LimbicFlowPipeline = Depends(get_pipeline),
+):
+    """
+    获取情绪历史
+    
+    Args:
+        limit: 返回的记录数量
+    
+    Returns:
+        List[Dict]: 情绪历史记录
+    """
+    try:
+        history = pipeline.amygdala.get_emotional_history(limit=limit)
+        return {"history": history}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/emotion/current")
+async def get_current_emotion(
+    pipeline: LimbicFlowPipeline = Depends(get_pipeline),
+):
+    """
+    获取当前情绪状态
+    
+    Returns:
+        Dict: 当前情绪状态
+    """
+    try:
+        state = pipeline.amygdala.get_current_state()
+        return {"emotion": state.to_dict()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/emotion/reset")
+async def reset_emotion(
+    pipeline: LimbicFlowPipeline = Depends(get_pipeline),
+):
+    """
+    重置情绪状态（清空历史）
+    
+    Returns:
+        Dict: 操作结果
+    """
+    try:
+        pipeline.amygdala.reset()
+        return {"status": "success", "message": "情绪状态已重置"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/config")
+async def get_config(
+    pipeline: LimbicFlowPipeline = Depends(get_pipeline),
+):
+    """
+    获取当前配置
+    
+    Returns:
+        Dict: 当前配置
+    """
+    config = pipeline.config
+    return {
+        "llm_provider": config.llm_provider,
+        "memory_limit": config.memory_limit,
+        "use_sensitive_emotion": config.use_sensitive_emotion,
+        "enable_depression": config.enable_depression,
+        "enable_alzheimer": config.enable_alzheimer,
+        "enable_ptsd": config.enable_ptsd,
+        "enable_hsp": config.enable_hsp,
+    }
+
 
 if __name__ == "__main__":
     import uvicorn
