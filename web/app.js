@@ -1,326 +1,199 @@
-// Limbic-Flow Chat Frontend - Simplified
+const API = 'http://localhost:8001';
+const CHAT_KEY = 'limbic_chat';
+const CONFIG_KEY = 'limbic_config';
 
-const API_BASE = 'http://localhost:8001';
-const CONFIG_KEY = 'limbic_flow_config';
-const CHAT_HISTORY_KEY = 'limbic_flow_chat_history';
-
-class ChatApp {
-    constructor() {
-        this.chatContainer = document.getElementById('chat-container');
-        this.messageInput = document.getElementById('message-input');
-        this.sendBtn = document.getElementById('send-btn');
-        
-        // Panels
-        this.settingsPanel = document.getElementById('settings-panel');
-        this.emotionPanel = document.getElementById('emotion-panel');
-        
-        // Settings elements
-        this.personalitySelect = document.getElementById('personality');
-        this.pathologySelect = document.getElementById('pathology');
-        this.llmProviderSelect = document.getElementById('llm-provider');
-        this.llmModelInput = document.getElementById('llm-model');
-        this.llmApiKeyInput = document.getElementById('llm-api-key');
-        this.llmBaseUrlInput = document.getElementById('llm-base-url');
-        
-        // Buttons
-        this.toggleSettingsBtn = document.getElementById('toggle-settings');
-        this.toggleEmotionBtn = document.getElementById('toggle-emotion');
-        this.closeSettingsBtn = document.getElementById('close-settings');
-        this.closeEmotionBtn = document.getElementById('close-emotion');
-        this.saveConfigBtn = document.getElementById('save-config-btn');
-        this.resetBtn = document.getElementById('reset-btn');
-        
-        // Load saved config
+const App = {
+    chat: document.getElementById('chat'),
+    input: document.getElementById('input'),
+    sendBtn: document.getElementById('btn-send'),
+    sidebarSettings: document.getElementById('sidebar-settings'),
+    sidebarEmotion: document.getElementById('sidebar-emotion'),
+    overlay: document.getElementById('overlay'),
+    
+    init() {
         this.loadConfig();
-        
-        // Load chat history
-        this.loadChatHistory();
-        
-        // Bind events
+        this.loadChat();
         this.bindEvents();
-    }
+        this.pollEmotion();
+    },
     
     loadConfig() {
         try {
-            const saved = localStorage.getItem(CONFIG_KEY);
-            if (saved) {
-                const config = JSON.parse(saved);
-                this.personalitySelect.value = config.personality || 'default';
-                this.pathologySelect.value = config.pathology || 'none';
-                this.llmProviderSelect.value = config.llmProvider || 'mock';
-                this.llmModelInput.value = config.llmModel || '';
-                this.llmApiKeyInput.value = config.llmApiKey || '';
-                this.llmBaseUrlInput.value = config.llmBaseUrl || '';
+            const cfg = JSON.parse(localStorage.getItem(CONFIG_KEY));
+            if (cfg) {
+                document.getElementById('personality').value = cfg.personality || 'default';
+                document.getElementById('pathology').value = cfg.pathology || 'none';
+                document.getElementById('llm-provider').value = cfg.llmProvider || 'mock';
+                document.getElementById('llm-model').value = cfg.llmModel || '';
+                document.getElementById('llm-api-key').value = cfg.llmApiKey || '';
             }
-        } catch (e) {
-            console.error('加载配置失败:', e);
-        }
-    }
+        } catch(e) { console.log(e); }
+    },
     
-    // 加载聊天记录
-    loadChatHistory() {
+    loadChat() {
         try {
-            const saved = localStorage.getItem(CHAT_HISTORY_KEY);
-            if (saved) {
-                const messages = JSON.parse(saved);
-                messages.forEach(msg => {
-                    this.addMessage(msg.content, msg.sender);
-                });
+            const msgs = JSON.parse(localStorage.getItem(CHAT_KEY));
+            if (msgs && msgs.length > 0) {
+                msgs.forEach(m => this.appendMsg(m.content, m.sender));
             }
-        } catch (e) {
-            console.error('加载聊天记录失败:', e);
-        }
-    }
+        } catch(e) { console.log(e); }
+    },
     
-    // 保存聊天记录
-    saveChatHistory() {
-        try {
-            const messages = [];
-            this.chatContainer.querySelectorAll('.message').forEach(msgEl => {
-                const content = msgEl.querySelector('.content').textContent;
-                const sender = msgEl.classList.contains('user') ? 'user' : 'bot';
-                messages.push({ content, sender });
+    saveChat() {
+        const msgs = [];
+        this.chat.querySelectorAll('.message').forEach(el => {
+            msgs.push({
+                content: el.querySelector('.content').textContent,
+                sender: el.classList.contains('user') ? 'user' : 'bot'
             });
-            // 只保存最近50条
-            const toSave = messages.slice(-50);
-            localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(toSave));
-        } catch (e) {
-            console.error('保存聊天记录失败:', e);
-        }
-    }
-    
-    saveConfig() {
-        const config = {
-            personality: this.personalitySelect.value,
-            pathology: this.pathologySelect.value,
-            llmProvider: this.llmProviderSelect.value,
-            llmModel: this.llmModelInput.value,
-            llmApiKey: this.llmApiKeyInput.value,
-            llmBaseUrl: this.llmBaseUrlInput.value,
-        };
-        
-        try {
-            localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-            this.updateConfig();
-            this.updateLLMConfig(config);
-            alert('配置已保存！');
-            this.closePanels();
-        } catch (e) {
-            alert('保存失败: ' + e.message);
-        }
-    }
+        });
+        localStorage.setItem(CHAT_KEY, JSON.stringify(msgs.slice(-50)));
+    },
     
     bindEvents() {
-        // Send message
-        this.sendBtn.addEventListener('click', () => this.sendMessage());
-        this.messageInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.sendMessage();
-            }
+        this.sendBtn.addEventListener('click', () => this.send());
+        this.input.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
+        });
+        this.input.addEventListener('input', () => {
+            this.input.style.height = 'auto';
+            this.input.style.height = Math.min(this.input.scrollHeight, 120) + 'px';
         });
         
-        // Auto resize input
-        this.messageInput.addEventListener('input', () => {
-            this.messageInput.style.height = 'auto';
-            this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 200) + 'px';
-        });
+        document.getElementById('btn-settings').onclick = () => this.openSidebar('settings');
+        document.getElementById('btn-emotion').onclick = () => this.openSidebar('emotion');
+        document.getElementById('close-settings').onclick = () => this.closeSidebar();
+        document.getElementById('close-emotion').onclick = () => this.closeSidebar();
+        this.overlay.onclick = () => this.closeSidebar();
         
-        // Toggle panels
-        this.toggleSettingsBtn.addEventListener('click', () => this.toggleSettings());
-        this.toggleEmotionBtn.addEventListener('click', () => this.toggleEmotion());
-        this.closeSettingsBtn.addEventListener('click', () => this.closePanels());
-        this.closeEmotionBtn.addEventListener('click', () => this.closePanels());
+        document.getElementById('save-config').onclick = () => this.saveConfig();
+        document.getElementById('reset-emotion').onclick = () => this.resetEmotion();
+    },
+    
+    openSidebar(type) {
+        this.sidebarSettings.classList.remove('active');
+        this.sidebarEmotion.classList.remove('active');
+        if (type === 'settings') this.sidebarSettings.classList.add('active');
+        else this.sidebarEmotion.classList.add('active');
+        this.overlay.classList.add('active');
+    },
+    
+    closeSidebar() {
+        this.sidebarSettings.classList.remove('active');
+        this.sidebarEmotion.classList.remove('active');
+        this.overlay.classList.remove('active');
+    },
+    
+    async send() {
+        const text = this.input.value.trim();
+        if (!text) return;
         
-        // Save & Reset
-        this.saveConfigBtn.addEventListener('click', () => this.saveConfig());
-        this.resetBtn.addEventListener('click', () => this.resetEmotion());
+        this.appendMsg(text, 'user');
+        this.input.value = '';
+        this.input.style.height = 'auto';
         
-        // Empty chat, no welcome screen
-        
-        // Poll emotion
-        this.updateEmotionDisplay();
-        setInterval(() => this.updateEmotionDisplay(), 3000);
-    }
-    
-    toggleSettings() {
-        this.settingsPanel.classList.toggle('active');
-        this.emotionPanel.classList.remove('active');
-    }
-    
-    toggleEmotion() {
-        this.emotionPanel.classList.toggle('active');
-        this.settingsPanel.classList.remove('active');
-    }
-    
-    closePanels() {
-        this.settingsPanel.classList.remove('active');
-        this.emotionPanel.classList.remove('active');
-    }
-    
-    async updateConfig() {
-        try {
-            await fetch(`${API_BASE}/config`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    personality: this.personalitySelect.value,
-                    pathology: this.pathologySelect.value
-                })
-            });
-        } catch (error) {
-            console.error('Error updating config:', error);
-        }
-    }
-    
-    async updateLLMConfig(config) {
-        try {
-            await fetch(`${API_BASE}/llm-config`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    provider: config.llmProvider,
-                    model: config.llmModel,
-                    api_key: config.llmApiKey,
-                    base_url: config.llmBaseUrl
-                })
-            });
-        } catch (error) {
-            console.error('Error updating LLM config:', error);
-        }
-    }
-    
-    async sendMessage() {
-        const message = this.messageInput.value.trim();
-        if (!message) return;
-        
-        // Add user message
-        this.addMessage(message, 'user');
-        this.messageInput.value = '';
-        this.messageInput.style.height = 'auto';
-        
-        // Loading
-        const loadingMsg = this.addLoadingMessage();
-        this.scrollToBottom();
+        const loading = this.appendLoading();
         
         try {
-            const response = await fetch(`${API_BASE}/process`, {
+            const res = await fetch(`${API}/process`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    user_input: message,
+                    user_input: text,
                     context: {
-                        personality: this.personalitySelect.value,
-                        pathology: this.pathologySelect.value
+                        personality: document.getElementById('personality').value,
+                        pathology: document.getElementById('pathology').value
                     }
                 })
             });
+            const data = await res.json();
+            loading.remove();
             
-            const data = await response.json();
-            loadingMsg.remove();
-            
-            if (data.actions && data.actions.length > 0) {
-                const botResponse = data.actions
-                    .filter(a => a.action === 'message')
-                    .map(a => a.content)
-                    .join('');
-                
-                if (botResponse) {
-                    this.addMessage(botResponse, 'bot');
-                } else {
-                    this.addMessage('抱歉，出了点问题...', 'bot');
-                }
-            } else {
-                this.addMessage('抱歉，出了点问题...', 'bot');
-            }
-            
-            this.updateEmotionDisplay();
-        } catch (error) {
-            console.error('Error:', error);
-            loadingMsg.remove();
-            this.addMessage('连接失败，请确保后端服务正在运行', 'bot');
+            const reply = data.actions?.filter(a => a.action === 'message').map(a => a.content).join('') || '...';
+            this.appendMsg(reply, 'bot');
+        } catch(e) {
+            loading.remove();
+            this.appendMsg('连接失败', 'bot');
         }
         
-        this.scrollToBottom();
-    }
+        this.saveChat();
+        this.pollEmotion();
+    },
     
-    addMessage(content, sender) {
+    appendMsg(text, sender) {
         const div = document.createElement('div');
         div.className = `message ${sender}`;
-        div.innerHTML = `
-            <div class="avatar">${sender === 'bot' ? '🧠' : '👤'}</div>
-            <div class="content">${this.escapeHtml(content)}</div>
-        `;
-        this.chatContainer.appendChild(div);
-        this.scrollToBottom();
-        
-        // 保存聊天记录
-        this.saveChatHistory();
-    }
+        div.innerHTML = `<div class="avatar">${sender === 'bot' ? '🧠' : '👤'}</div><div class="content">${this.escape(text)}</div>`;
+        this.chat.appendChild(div);
+        this.chat.scrollTop = this.chat.scrollHeight;
+    },
     
-    addLoadingMessage() {
+    appendLoading() {
         const div = document.createElement('div');
         div.className = 'message bot';
-        div.innerHTML = `
-            <div class="avatar">🧠</div>
-            <div class="content">
-                <div class="typing"><span></span><span></span><span></span></div>
-            </div>
-        `;
-        this.chatContainer.appendChild(div);
-        this.scrollToBottom();
+        div.innerHTML = `<div class="avatar">🧠</div><div class="content"><div class="typing"><span></span><span></span><span></span></div></div>`;
+        this.chat.appendChild(div);
+        this.chat.scrollTop = this.chat.scrollHeight;
         return div;
-    }
+    },
     
-    async updateEmotionDisplay() {
+    async pollEmotion() {
         try {
-            const response = await fetch(`${API_BASE}/emotion/current`);
-            const data = await response.json();
-            const emotion = data.emotion || {};
-            
-            this.updateBar('pleasure', emotion.pleasure);
-            this.updateBar('arousal', emotion.arousal);
-            this.updateBar('dominance', emotion.dominance);
-            this.updateBar('dopamine', emotion.dopamine);
-            this.updateBar('cortisol', emotion.cortisol);
-        } catch (error) {
-            console.error('Error fetching emotion:', error);
-        }
-    }
+            const res = await fetch(`${API}/emotion/current`);
+            const data = await res.json();
+            const e = data.emotion || {};
+            this.updateBar('pleasure', e.pleasure);
+            this.updateBar('arousal', e.arousal);
+            this.updateBar('dominance', e.dominance);
+            this.updateBar('dopamine', e.dopamine);
+            this.updateBar('cortisol', e.cortisol);
+        } catch(e) {}
+        setTimeout(() => this.pollEmotion(), 3000);
+    },
     
-    updateBar(key, value) {
-        const bar = document.getElementById(`bar-${key}`);
-        const valueEl = document.getElementById(`value-${key}`);
+    updateBar(key, val) {
+        const v = parseFloat(val) || 0;
+        const pct = (v + 1) * 50;
+        document.getElementById(`bar-${key}`).style.width = `${Math.min(100, Math.max(0, pct))}%`;
+        document.getElementById(`val-${key}`).textContent = Math.round(v * 100);
+    },
+    
+    async saveConfig() {
+        const cfg = {
+            personality: document.getElementById('personality').value,
+            pathology: document.getElementById('pathology').value,
+            llmProvider: document.getElementById('llm-provider').value,
+            llmModel: document.getElementById('llm-model').value,
+            llmApiKey: document.getElementById('llm-api-key').value
+        };
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
         
-        if (bar && valueEl) {
-            const percentage = ((parseFloat(value) || 0) + 1) * 50;
-            bar.style.width = `${Math.min(100, Math.max(0, percentage))}%`;
-            valueEl.textContent = Math.round((parseFloat(value) || 0) * 100);
-        }
-    }
+        try {
+            await fetch(`${API}/config`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({personality: cfg.personality, pathology: cfg.pathology})
+            });
+        } catch(e) {}
+        
+        alert('已保存');
+        this.closeSidebar();
+    },
     
     async resetEmotion() {
         try {
-            await fetch(`${API_BASE}/emotion/reset`, { method: 'POST' });
-            this.addMessage('情绪已重置~', 'bot');
-            this.updateEmotionDisplay();
-            this.closePanels();
-        } catch (error) {
-            console.error('Error resetting emotion:', error);
-        }
-    }
+            await fetch(`${API}/emotion/reset`, {method: 'POST'});
+            this.appendMsg('情绪已重置~', 'bot');
+            this.saveChat();
+        } catch(e) {}
+        this.closeSidebar();
+    },
     
-    scrollToBottom() {
-        this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+    escape(t) {
+        const d = document.createElement('div');
+        d.textContent = t;
+        return d.innerHTML;
     }
-    
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-}
+};
 
-document.addEventListener('DOMContentLoaded', () => {
-    new ChatApp();
-});
+document.addEventListener('DOMContentLoaded', () => App.init());
