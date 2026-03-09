@@ -62,3 +62,6 @@ dmypy.json
 # Project specific
 amygdala.db
 memory_store.json
+
+# ReCode local database
+.recode
