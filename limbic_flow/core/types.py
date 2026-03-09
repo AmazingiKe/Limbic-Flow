@@ -11,6 +11,13 @@ class CognitiveState:
     [职责] 认知状态总线 - 贯穿整个 Pipeline 的核心数据对象
     [场景] 在各个器官之间传递，承载感知、情绪、记忆、表达和动作信息
     [可替换性] 核心数据结构，不可替换
+    
+    [OCC 支持]
+    新增 OCC 相关字段，用于认知情绪模型:
+    - occ_appraisal: 认知评估结果
+    - occ_state: OCC 情绪状态
+    - dominant_emotion: 主导情绪类型
+    - emotion_intensity: 情绪强度
     """
     
     # Input Channel (输入通道)
@@ -22,6 +29,12 @@ class CognitiveState:
     pad_vector: Dict[str, float] = field(default_factory=lambda: {"pleasure": 0.0, "arousal": 0.0, "dominance": 0.0})
     neurotransmitters: Dict[str, float] = field(default_factory=lambda: {"dopamine": 0.5, "cortisol": 0.3})
     environmental_pressure: float = 0.0 # 环境压力
+    
+    # OCC Channel (OCC 认知情绪) - 新增
+    occ_appraisal: Optional[Any] = None  # 认知评估结果
+    occ_state: Optional[Any] = None      # OCC 情绪状态
+    dominant_emotion: str = ""           # 主导情绪类型
+    emotion_intensity: float = 0.0      # 情绪强度
     
     # Memory Channel (记忆通道)
     query_vector: Optional[Any] = None  # numpy array
