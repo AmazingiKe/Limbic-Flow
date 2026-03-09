@@ -198,16 +198,22 @@ class PTSDPathology(Pathology):
     [比喻] 就像PTSD患者，听到某个关键词就会突然想起痛苦的回忆
     """
     
-    # 常见触发词（可以配置）
+    # 常见触发词（可以配置）- 已迁移到 trigger_system.py
     DEFAULT_TRIGGERS = [
         "去世", "死亡", "车祸", "事故", "伤害",
         "fire", "crash", "death", "accident",
     ]
     
-    def __init__(self, severity: float = 0.5, triggers: List[str] = None):
+    def __init__(self, severity: float = 0.5, triggers: List[str] = None, trigger_system=None):
         self.severity = severity
         self.triggers = triggers or self.DEFAULT_TRIGGERS
         self.trauma_memories: List[Dict[str, Any]] = []
+        # 使用解耦的触发系统
+        self.trigger_system = trigger_system
+    
+    def set_trigger_system(self, trigger_system) -> None:
+        """设置触发系统"""
+        self.trigger_system = trigger_system
     
     def add_trauma_memory(self, memory: Dict[str, Any]) -> None:
         """添加创伤记忆"""
