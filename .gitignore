@@ -59,9 +59,16 @@ htmlcov/
 .dmypy.json
 dmypy.json
 
-# Project specific
+# Project specific - Limbic-Flow memory storage (DO NOT UPLOAD TO GIT)
 amygdala.db
 memory_store.json
+*.memory.json
+*.memory.db
+memory/
+data/
+*.pkl
+*.pickle
+.session
 
 # ReCode local database
 .recode
