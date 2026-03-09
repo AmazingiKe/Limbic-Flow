@@ -8,9 +8,11 @@ from limbic_flow.core.hippocampus import FileHippocampus
 from limbic_flow.core.amygdala import Amygdala
 from limbic_flow.core.articulation.motor_cortex import MotorCortex
 from limbic_flow.core.brain.processor import Brain
-from limbic_flow.middleware.pathology import BasePathologyMiddleware, DepressionPathology, AlzheimerPathology
+from limbic_flow.middleware.pathology import create_pathology_middleware
 from limbic_flow.core.ai.embedding import EmbeddingService
 from limbic_flow.core.neocortex import MockNeocortex
+from limbic_flow.core.config import LimbicConfig
+from limbic_flow.pipeline.config import PipelineConfig
 from limbic_flow.utils.logger import get_logger
 
 
@@ -23,30 +25,50 @@ class LimbicFlowPipeline:
     
     def __init__(
         self,
-        llm_provider: Optional[str] = None,
+        config: PipelineConfig = None,
         hippocampus: Optional[Any] = None,
         amygdala: Optional[Any] = None,
     ):
         self.logger = get_logger("LimbicFlowPipeline")
-        # 1. 核心器官实例化（支持注入，便于测试）
+        self.config = config or PipelineConfig()
+        
+        # 1. 配置情绪系统
+        emotion_config = None
+        if self.config.use_sensitive_emotion:
+            emotion_config = LimbicConfig.sensitive()
+        
+        # 2. 核心器官实例化（支持注入，便于测试）
         self.embedding_service = EmbeddingService()
-        self.amygdala = amygdala if amygdala is not None else Amygdala()
-        self.hippocampus = hippocampus if hippocampus is not None else FileHippocampus()
-        self.brain = Brain(llm_provider)
-        self.motor_cortex = MotorCortex()
+        self.amygdala = amygdala if amygdala is not None else Amygdala(config=emotion_config)
+        self.hippocampus = hippocampus if hippocampus is not None else FileHippocampus(
+            storage_path=self.config.memory_store_path
+        )
+        self.brain = Brain(self.config.llm_provider)
+        self.motor_cortex = MotorCortex(
+            base_wpm=self.config.base_wpm,
+            min_segment_length=self.config.min_segment_length,
+            max_segment_length=self.config.max_segment_length,
+        )
         
-        # 2. 中间件初始化
-        self.pathology_middleware = BasePathologyMiddleware()
-        self.pathology_middleware.add_pathology(DepressionPathology())
-        self.pathology_middleware.add_pathology(AlzheimerPathology())
+        # 3. 病理中间件
+        self.pathology_middleware = create_pathology_middleware(
+            enable_depression=self.config.enable_depression,
+            enable_alzheimer=self.config.enable_alzheimer,
+            enable_ptsd=self.config.enable_ptsd,
+            enable_hsp=self.config.enable_hsp,
+            depression_severity=self.config.depression_severity,
+            alzheimer_severity=self.config.alzheimer_severity,
+            ptsd_severity=self.config.ptsd_severity,
+            hsp_sensitivity=self.config.hsp_sensitivity,
+        )
         
-        # 新皮层（当前为 Mock，供认知重构使用语义知识）
+        # 4. 新皮层（当前为 Mock，供认知重构使用语义知识）
         self.neocortex = MockNeocortex()
         
-        # 3. 辅助状态
+        # 5. 辅助状态
         self.user_info = {}
         self._load_user_info_from_memory()
-        self.logger.info("Limbic-Flow Pipeline 初始化完成")
+        self.logger.info(f"Limbic-Flow Pipeline 初始化完成 (config: {'sensitive' if self.config.use_sensitive_emotion else 'default'})")
 
     def process_input_stream(self, user_input: str, context: Dict[str, Any] = None) -> Generator[ActionEvent, None, None]:
         """
@@ -76,7 +98,7 @@ class LimbicFlowPipeline:
             query_for_retrieval = self.pathology_middleware.distort_query(
                 state.query_vector.copy(), emotional_state
             )
-            state.memories = self.hippocampus.retrieve_memories(query_for_retrieval, limit=5)
+            state.memories = self.hippocampus.retrieve_memories(query_for_retrieval, limit=self.config.memory_limit)
             state.raw_memories = state.memories
         else:
             state.memories = []
