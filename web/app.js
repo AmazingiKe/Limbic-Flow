@@ -71,6 +71,7 @@ const gifReactions = {
 // 初始化
 function init() {
     loadConfig();
+    loadChatHistory();
     setupEventListeners();
     updateEmotionDisplay();
     startAutoCheck();
@@ -226,6 +227,10 @@ function addMessage(text, sender) {
 
     elements.chat.appendChild(messageEl);
     scrollToBottom();
+    
+    // 保存聊天记录
+    state.messages.push({ text, sender, time: Date.now() });
+    saveChatHistory();
     
     // 更新情感标签
     updateMoodTag();
