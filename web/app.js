@@ -1,4 +1,4 @@
-// Limbic-Flow Chat Frontend
+// Limbic-Flow Chat Frontend - ChatGPT Style
 
 const API_BASE = 'http://localhost:8001';
 
@@ -19,10 +19,19 @@ class ChatApp {
     }
     
     init() {
-        // 绑定事件
+        // 绑定发送事件
         this.sendBtn.addEventListener('click', () => this.sendMessage());
-        this.messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.sendMessage();
+        this.messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendMessage();
+            }
+        });
+        
+        // 自动调整输入框高度
+        this.messageInput.addEventListener('input', () => {
+            this.messageInput.style.height = 'auto';
+            this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 200) + 'px';
         });
         
         this.resetBtn.addEventListener('click', () => this.resetEmotion());
@@ -36,12 +45,22 @@ class ChatApp {
         const message = this.messageInput.value.trim();
         if (!message) return;
         
+        // 隐藏欢迎页
+        const welcomeScreen = this.chatContainer.querySelector('.welcome-screen');
+        if (welcomeScreen) {
+            welcomeScreen.style.display = 'none';
+        }
+        
         // 添加用户消息
         this.addMessage(message, 'user');
         this.messageInput.value = '';
+        this.messageInput.style.height = 'auto';
         
         // 显示加载状态
         const loadingMsg = this.addLoadingMessage();
+        
+        // 滚动到底部
+        this.scrollToBottom();
         
         try {
             const response = await fetch(`${API_BASE}/process`, {
@@ -69,7 +88,11 @@ class ChatApp {
                     .map(a => a.content)
                     .join('');
                 
-                this.addMessage(botResponse || '...', 'bot');
+                if (botResponse) {
+                    this.addMessage(botResponse, 'bot');
+                } else {
+                    this.addMessage('抱歉，出了点问题...', 'bot');
+                }
             } else {
                 this.addMessage('抱歉，出了点问题...', 'bot');
             }
@@ -82,6 +105,8 @@ class ChatApp {
             loadingMsg.remove();
             this.addMessage('连接失败，请确保后端服务正在运行', 'bot');
         }
+        
+        this.scrollToBottom();
     }
     
     addMessage(content, sender) {
@@ -96,7 +121,7 @@ class ChatApp {
         `;
         
         this.chatContainer.appendChild(messageDiv);
-        this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+        this.scrollToBottom();
     }
     
     addLoadingMessage() {
@@ -112,7 +137,7 @@ class ChatApp {
         `;
         
         this.chatContainer.appendChild(messageDiv);
-        this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+        this.scrollToBottom();
         
         return messageDiv;
     }
@@ -136,6 +161,18 @@ class ChatApp {
         }
     }
     
+    updateBar(key, value) {
+        const bar = document.getElementById(`bar-${key}`);
+        const valueEl = document.getElementById(`value-${key}`);
+        
+        if (bar && valueEl) {
+            // 转换到 0-100%
+            const percentage = ((parseFloat(value) || 0) + 1) * 50;
+            bar.style.width = `${Math.min(100, Math.max(0, percentage))}%`;
+            valueEl.textContent = Math.round((parseFloat(value) || 0) * 100);
+        }
+    }
+    
     async updateConfig() {
         try {
             await fetch(`${API_BASE}/config`, {
@@ -151,18 +188,6 @@ class ChatApp {
         }
     }
     
-    updateBar(key, value) {
-        const bar = document.getElementById(`bar-${key}`);
-        const valueEl = document.getElementById(`value-${key}`);
-        
-        if (bar && valueEl) {
-            // 转换到 0-100%
-            const percentage = ((parseFloat(value) || 0) + 1) * 50;
-            bar.style.width = `${Math.min(100, Math.max(0, percentage))}%`;
-            valueEl.textContent = (parseFloat(value) || 0).toFixed(2);
-        }
-    }
-    
     async resetEmotion() {
         try {
             await fetch(`${API_BASE}/emotion/reset`, { method: 'POST' });
@@ -171,6 +196,10 @@ class ChatApp {
         } catch (error) {
             console.error('Error resetting emotion:', error);
         }
+    }
+    
+    scrollToBottom() {
+        this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
     }
     
     escapeHtml(text) {

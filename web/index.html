@@ -3,16 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Limbic-Flow 对话</title>
+    <title>Chat</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🧠 Limbic-Flow</h1>
-            <div class="controls">
-                <div class="control-group">
-                    <label>人格:</label>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    新对话
+                </button>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="section-title">设置</div>
+                
+                <div class="setting-item">
+                    <label>人格</label>
                     <select id="personality">
                         <option value="default">默认</option>
                         <option value="gentle">温柔</option>
@@ -21,8 +32,9 @@
                         <option value="energetic">活力</option>
                     </select>
                 </div>
-                <div class="control-group">
-                    <label>病理:</label>
+                
+                <div class="setting-item">
+                    <label>模式</label>
                     <select id="pathology">
                         <option value="none">正常</option>
                         <option value="depression">抑郁</option>
@@ -31,59 +43,73 @@
                         <option value="hsp">高敏感</option>
                     </select>
                 </div>
-                <button id="reset-btn" class="btn">重置情绪</button>
+                
+                <div class="setting-item">
+                    <button id="reset-btn" class="reset-btn">重置情绪</button>
+                </div>
             </div>
-        </header>
+            
+            <div class="emotion-display">
+                <div class="emotion-item">
+                    <span class="emotion-label">愉悦</span>
+                    <div class="emotion-bar">
+                        <div class="emotion-fill" id="bar-pleasure"></div>
+                    </div>
+                    <span class="emotion-value" id="value-pleasure">0</span>
+                </div>
+                <div class="emotion-item">
+                    <span class="emotion-label">唤醒</span>
+                    <div class="emotion-bar">
+                        <div class="emotion-fill" id="bar-arousal"></div>
+                    </div>
+                    <span class="emotion-value" id="value-arousal">0</span>
+                </div>
+                <div class="emotion-item">
+                    <span class="emotion-label">控制</span>
+                    <div class="emotion-bar">
+                        <div class="emotion-fill" id="bar-dominance"></div>
+                    </div>
+                    <span class="emotion-value" id="value-dominance">0</span>
+                </div>
+                <div class="emotion-item">
+                    <span class="emotion-label">多巴胺</span>
+                    <div class="emotion-bar">
+                        <div class="emotion-fill dopamine" id="bar-dopamine"></div>
+                    </div>
+                    <span class="emotion-value" id="value-dopamine">0</span>
+                </div>
+                <div class="emotion-item">
+                    <span class="emotion-label">皮质醇</span>
+                    <div class="emotion-bar">
+                        <div class="emotion-fill cortisol" id="bar-cortisol"></div>
+                    </div>
+                    <span class="emotion-value" id="value-cortisol">0</span>
+                </div>
+            </div>
+        </aside>
         
-        <div class="emotion-display">
-            <div class="emotion-item">
-                <span class="emotion-label">愉悦</span>
-                <div class="emotion-bar">
-                    <div class="emotion-fill" id="bar-pleasure"></div>
+        <main class="chat-main">
+            <div class="chat-container" id="chat-container">
+                <div class="welcome-screen">
+                    <div class="welcome-icon">🧠</div>
+                    <h2>你好，我是 Limbic-Flow</h2>
+                    <p>一个有情绪的 AI 助手</p>
                 </div>
-                <span class="emotion-value" id="value-pleasure">0.00</span>
             </div>
-            <div class="emotion-item">
-                <span class="emotion-label">唤醒</span>
-                <div class="emotion-bar">
-                    <div class="emotion-fill" id="bar-arousal"></div>
+            
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea id="message-input" placeholder="发送消息..." rows="1"></textarea>
+                    <button id="send-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
                 </div>
-                <span class="emotion-value" id="value-arousal">0.00</span>
+                <p class="disclaimer">AI 生成内容，仅供参考</p>
             </div>
-            <div class="emotion-item">
-                <span class="emotion-label">控制</span>
-                <div class="emotion-bar">
-                    <div class="emotion-fill" id="bar-dominance"></div>
-                </div>
-                <span class="emotion-value" id="value-dominance">0.00</span>
-            </div>
-            <div class="emotion-item">
-                <span class="emotion-label">多巴胺</span>
-                <div class="emotion-bar">
-                    <div class="emotion-fill dopamine" id="bar-dopamine"></div>
-                </div>
-                <span class="emotion-value" id="value-dopamine">0.50</span>
-            </div>
-            <div class="emotion-item">
-                <span class="emotion-label">皮质醇</span>
-                <div class="emotion-bar">
-                    <div class="emotion-fill cortisol" id="bar-cortisol"></div>
-                </div>
-                <span class="emotion-value" id="value-cortisol">0.30</span>
-            </div>
-        </div>
-        
-        <div class="chat-container" id="chat-container">
-            <div class="message bot">
-                <div class="avatar">🧠</div>
-                <div class="content">你好！我是 Limbic-Flow，一个有情绪的 AI 助手。有什么想聊的吗？</div>
-            </div>
-        </div>
-        
-        <div class="input-area">
-            <input type="text" id="message-input" placeholder="输入消息..." autocomplete="off">
-            <button id="send-btn">发送</button>
-        </div>
+        </main>
     </div>
     
     <script src="app.js"></script>
