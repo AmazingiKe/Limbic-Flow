@@ -431,11 +431,34 @@ function updateMoodTag() {
 
 // 获取情绪图标
 function getEmotionIcon() {
-    if (state.emotion.pleasure > 70) return '😊';
-    if (state.emotion.pleasure < 30) return '😢';
-    if (state.emotion.arousal > 70) return '😮';
-    if (state.emotion.pleasure > 50 && state.emotion.arousal > 50) return '😄';
-    return '🧠';
+    const { pleasure, arousal } = state.emotion;
+    
+    // 根据情绪值返回更丰富的表情
+    if (arousal > 70) {
+        if (pleasure > 60) return '🤩';  // 超级兴奋
+        if (pleasure > 30) return '😤';  // 激动
+        if (pleasure < 30) return '😫';  // 焦虑
+        return '🤪';  // 兴奋
+    }
+    if (arousal > 50) {
+        if (pleasure > 60) return '😄';  // 开心
+        if (pleasure > 30) return '😊';  // 愉快
+        if (pleasure < 30) return '😒';  // 无聊
+        return '🙂';  // 平静
+    }
+    if (arousal > 30) {
+        if (pleasure > 60) return '😊';  // 开心
+        if (pleasure > 30) return '🙂';  // 平静
+        if (pleasure < 30) return '😔';  // 难过
+        return '😐';  // 一般
+    }
+    if (arousal < 30) {
+        if (pleasure > 60) return '😌';  // 放松
+        if (pleasure > 30) return '😌';  // 平静
+        if (pleasure < 30) return '😴';  // 困倦
+        return '😌';  // 平静
+    }
+    return '🙂';  // 默认
 }
 
 // 打开侧边栏

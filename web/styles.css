@@ -436,10 +436,11 @@ body {
 
 /* 情绪指示器 */
 .emotion-indicator {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    padding: 16px;
+    display: none;
+}
+
+.btn-reset {
+    display: none;
 }
 
 .emotion-dot {
