@@ -2,6 +2,7 @@
 
 const API_BASE = 'http://localhost:8001';
 const CONFIG_KEY = 'limbic_flow_config';
+const CHAT_HISTORY_KEY = 'limbic_flow_chat_history';
 
 class ChatApp {
     constructor() {
@@ -32,6 +33,9 @@ class ChatApp {
         // Load saved config
         this.loadConfig();
         
+        // Load chat history
+        this.loadChatHistory();
+        
         // Bind events
         this.bindEvents();
     }
@@ -50,6 +54,38 @@ class ChatApp {
             }
         } catch (e) {
             console.error('加载配置失败:', e);
+        }
+    }
+    
+    // 加载聊天记录
+    loadChatHistory() {
+        try {
+            const saved = localStorage.getItem(CHAT_HISTORY_KEY);
+            if (saved) {
+                const messages = JSON.parse(saved);
+                messages.forEach(msg => {
+                    this.addMessage(msg.content, msg.sender);
+                });
+            }
+        } catch (e) {
+            console.error('加载聊天记录失败:', e);
+        }
+    }
+    
+    // 保存聊天记录
+    saveChatHistory() {
+        try {
+            const messages = [];
+            this.chatContainer.querySelectorAll('.message').forEach(msgEl => {
+                const content = msgEl.querySelector('.content').textContent;
+                const sender = msgEl.classList.contains('user') ? 'user' : 'bot';
+                messages.push({ content, sender });
+            });
+            // 只保存最近50条
+            const toSave = messages.slice(-50);
+            localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(toSave));
+        } catch (e) {
+            console.error('保存聊天记录失败:', e);
         }
     }
     
@@ -217,6 +253,9 @@ class ChatApp {
         `;
         this.chatContainer.appendChild(div);
         this.scrollToBottom();
+        
+        // 保存聊天记录
+        this.saveChatHistory();
     }
     
     addLoadingMessage() {
