@@ -255,7 +255,7 @@ class OCCEngine:
             if appraisal.causal_attribution_self > 0:
                 self.state.self_pride = appraisal.praiseworthiness * appraisal.causal_attribution_self
             elif appraisal.causal_attribution_self < 0:
-                self.state.self_shame = abs(appraise.praiseworthiness) * abs(appraisal.causal_attribution_self)
+                self.state.self_shame = abs(appraisal.praiseworthiness) * abs(appraisal.causal_attribution_self)
             
             if appraisal.causal_attribution_other > 0:
                 self.state.admiration = appraisal.praiseworthiness * appraisal.causal_attribution_other
@@ -295,6 +295,185 @@ class OCCEngine:
         for key in self.state.__dict__:
             setattr(self.state, key, 0.0)
         self.history.clear()
+    
+    def decay_differential(self, time_delta: float, config: "OCCHalfLifeConfig" = None):
+        """差异化衰减 - 不同情绪有不同的半衰期
+
+        joy 消退慢（好心情持续久），anger 消退快（气过了就好了）
+
+        Args:
+            time_delta: 经过的时间（秒）
+            config: 半衰期配置
+        """
+        import math
+        config = config or OCCHalfLifeConfig()
+
+        emotions = self.state.to_dict()
+        for emotion_name, current in emotions.items():
+            if current <= 0.001:  # 忽略极小值
+                continue
+            half_life = config.get(emotion_name)
+            decay_factor = math.exp(-math.log(2) * time_delta / half_life)
+            setattr(self.state, emotion_name, current * decay_factor)
+
+
+@dataclass
+class OCCHalfLifeConfig:
+    """OCC 情绪的差异化半衰期配置
+
+    不同情绪有不同的衰减速度，模拟真实的人类情绪特点：
+    - 愤怒消退快（15分钟）
+    - 惊讶很短暂（10分钟）
+    - 爱持续久（24小时）
+    """
+
+    # 快速衰减（秒）
+    anger: float = 900           # 愤怒来得快去得快
+    surprise: float = 600        # 惊讶很短暂
+    fear: float = 1200           # 恐惧消退较快
+    fear_confounding: float = 1200
+
+    # 中等衰减
+    joy: float = 3600            # 喜悦持续约 1 小时
+    sadness: float = 5400        # 悲伤持续较久
+    disappointment: float = 3600 # 失望中等持续
+    distress: float = 2700       # 苦恼中等
+    relief: float = 1800         # 宽慰较快
+
+    # 慢速衰减
+    love: float = 86400          # 爱是长久的
+    hate: float = 43200          # 恨也持续很久
+    pride: float = 7200          # 自豪感持续较久
+    shame: float = 14400         # 羞耻感更持久
+    self_pride: float = 5400    # 自我自豪较久
+    self_shame: float = 10800    # 自我羞耻更久
+
+    # 行为评估情绪
+    hope: float = 3600           # 希望中等
+    satisfaction: float = 2700   # 满意中等
+    admiration: float = 3600     # 钦佩中等
+    reproach: float = 3600        # 责备中等
+    gratitude: float = 7200      # 感激持续
+
+    # 默认
+    default: float = 3600
+
+    def get(self, emotion_name: str) -> float:
+        """获取指定情绪的半衰期"""
+        return getattr(self, emotion_name, self.default)
+
+
+class OCCToPADProjector:
+    """
+    OCC 情绪 → PAD 维度投影
+
+    [职责] 将离散情绪映射到连续维度空间
+    [依据] Mehrabian (1996) 情绪-PAD 映射 + OCC 模型语义
+    [可替换性] 映射矩阵可配置化
+    """
+
+    # 映射矩阵: emotion_name → (pleasure, arousal, dominance) 权重
+    PROJECTION_MATRIX = {
+        # 正面事件情绪
+        "joy":            (0.8,  0.3,  0.2),
+        "hope":           (0.5,  0.2,  0.1),
+        "satisfaction":   (0.6,  -0.1, 0.3),
+        "relief":         (0.4,  -0.3, 0.2),
+        "happiness":      (0.7,  0.2,  0.2),
+
+        # 负面事件情绪
+        "fear":           (-0.6, 0.7, -0.6),
+        "disappointment": (-0.5, -0.2, -0.3),
+        "sadness":        (-0.7, -0.3, -0.4),
+        "distress":       (-0.6, 0.4, -0.5),
+
+        # 行为评估情绪
+        "pride":          (0.5,  0.3,  0.6),
+        "shame":          (-0.5, 0.2, -0.6),
+        "self_pride":     (0.4,  0.2,  0.5),
+        "self_shame":     (-0.4, 0.3, -0.5),
+        "admiration":     (0.5,  0.2, -0.1),
+        "reproach":       (-0.4, 0.3,  0.3),
+
+        # 复合情绪
+        "gratitude":      (0.6,  0.1, -0.1),
+        "anger":          (-0.5, 0.7,  0.5),
+
+        # 对象情绪
+        "love":           (0.7,  0.3,  0.1),
+        "hate":           (-0.6, 0.5,  0.3),
+    }
+
+    @classmethod
+    def project(cls, occ_state: OCCState) -> Dict[str, float]:
+        """将 OCC 情绪状态投影到 PAD 空间
+
+        Args:
+            occ_state: OCC 情绪状态
+
+        Returns:
+            PAD 向量 dict: {pleasure, arousal, dominance}
+        """
+        p, a, d = 0.0, 0.0, 0.0
+        emotions = occ_state.to_dict()
+
+        # 加权求和
+        for emotion_name, intensity in emotions.items():
+            if intensity <= 0.0:
+                continue
+            weights = cls.PROJECTION_MATRIX.get(emotion_name, (0, 0, 0))
+            p += intensity * weights[0]
+            a += intensity * weights[1]
+            d += intensity * weights[2]
+
+        # 归一化到 [-1, 1]
+        return {
+            "pleasure": max(-1.0, min(1.0, p)),
+            "arousal":  max(-1.0, min(1.0, a)),
+            "dominance": max(-1.0, min(1.0, d)),
+        }
+
+    @classmethod
+    def project_neurotransmitters(cls, occ_state: OCCState) -> Dict[str, float]:
+        """从 OCC 情绪推导神经递质水平
+
+        Args:
+            occ_state: OCC 情绪状态
+
+        Returns:
+            神经递质 dict: {dopamine, cortisol}
+        """
+        emotions = occ_state.to_dict()
+
+        # 多巴胺：积极情绪驱动
+        dopamine = 0.5  # 基线
+        dopamine += emotions.get("joy", 0) * 0.3
+        dopamine += emotions.get("satisfaction", 0) * 0.2
+        dopamine += emotions.get("hope", 0) * 0.2
+        dopamine += emotions.get("love", 0) * 0.15
+        dopamine += emotions.get("pride", 0) * 0.15
+        dopamine += emotions.get("admiration", 0) * 0.1
+        dopamine += emotions.get("gratitude", 0) * 0.15
+        dopamine -= emotions.get("sadness", 0) * 0.2
+        dopamine -= emotions.get("disappointment", 0) * 0.15
+        dopamine -= emotions.get("shame", 0) * 0.1
+
+        # 皮质醇：压力/威胁情绪驱动
+        cortisol = 0.3  # 基线
+        cortisol += emotions.get("fear", 0) * 0.3
+        cortisol += emotions.get("anger", 0) * 0.25
+        cortisol += emotions.get("distress", 0) * 0.2
+        cortisol += emotions.get("shame", 0) * 0.15
+        cortisol += emotions.get("self_shame", 0) * 0.15
+        cortisol += emotions.get("reproach", 0) * 0.1
+        cortisol -= emotions.get("relief", 0) * 0.15
+        cortisol -= emotions.get("joy", 0) * 0.1
+        cortisol -= emotions.get("satisfaction", 0) * 0.1
+
+        return {
+            "dopamine": max(0.0, min(1.0, dopamine)),
+            "cortisol": max(0.0, min(1.0, cortisol)),
+        }
 
 
 # 便捷函数
