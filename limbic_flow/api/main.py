@@ -231,6 +231,51 @@ async def update_config(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/llm-config")
+async def update_llm_config(
+    config_request: Dict[str, Any],
+    pipeline: LimbicFlowPipeline = Depends(get_pipeline),
+):
+    """
+    更新 LLM 配置
+    
+    Request body:
+        provider: "mock" | "openai" | "deepseek" | "anthropic" | "ollama"
+        model: 模型名称
+        api_key: API Key
+        base_url: 自定义 API 地址
+    """
+    try:
+        provider = config_request.get("provider", "mock")
+        model = config_request.get("model", "")
+        api_key = config_request.get("api_key", "")
+        base_url = config_request.get("base_url", "")
+        
+        # 重新创建 Brain 和 LLM
+        import os
+        from limbic_flow.core.ai.factory import LLMFactory
+        
+        # 设置环境变量
+        if api_key:
+            os.environ[f"{provider.upper()}_API_KEY"] = api_key
+        if model:
+            os.environ[f"{provider.upper()}_MODEL"] = model
+        if base_url:
+            os.environ[f"{provider.upper()}_BASE_URL"] = base_url
+        
+        # 更新 pipeline 的 LLM
+        factory = LLMFactory()
+        pipeline.brain.llm = factory.create_llm(provider)
+        pipeline.brain.prompt_builder = PromptBuilder()
+        
+        # 更新配置
+        pipeline.config.llm_provider = provider
+        
+        return {"status": "success", "message": f"已切换到 {provider} 模型: {model}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

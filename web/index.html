@@ -10,7 +10,7 @@
     <div class="app-container">
         <aside class="sidebar">
             <div class="sidebar-header">
-                <button class="new-chat-btn">
+                <button class="new-chat-btn" id="new-chat-btn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
                         <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -43,10 +43,44 @@
                         <option value="hsp">高敏感</option>
                     </select>
                 </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="section-title">模型配置</div>
                 
                 <div class="setting-item">
-                    <button id="reset-btn" class="reset-btn">重置情绪</button>
+                    <label>LLM 提供商</label>
+                    <select id="llm-provider">
+                        <option value="mock">Mock (无需API)</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="ollama">Ollama (本地)</option>
+                    </select>
                 </div>
+                
+                <div class="setting-item">
+                    <label>模型名称</label>
+                    <input type="text" id="llm-model" placeholder="如: gpt-4o, claude-3-opus..." />
+                </div>
+                
+                <div class="setting-item">
+                    <label>API Key</label>
+                    <input type="password" id="llm-api-key" placeholder="sk-..." />
+                </div>
+                
+                <div class="setting-item">
+                    <label>Base URL (可选)</label>
+                    <input type="text" id="llm-base-url" placeholder="自定义API地址" />
+                </div>
+                
+                <div class="setting-item">
+                    <button id="save-config-btn" class="save-btn">保存配置</button>
+                </div>
+            </div>
+            
+            <div class="setting-item" style="margin-top: auto; padding: 15px;">
+                <button id="reset-btn" class="reset-btn">重置情绪</button>
             </div>
             
             <div class="emotion-display">

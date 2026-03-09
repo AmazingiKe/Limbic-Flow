@@ -1,21 +1,79 @@
 // Limbic-Flow Chat Frontend - ChatGPT Style
 
 const API_BASE = 'http://localhost:8001';
+const CONFIG_KEY = 'limbic_flow_config';
 
 class ChatApp {
     constructor() {
         this.chatContainer = document.getElementById('chat-container');
         this.messageInput = document.getElementById('message-input');
         this.sendBtn = document.getElementById('send-btn');
+        
+        // 设置相关
         this.personalitySelect = document.getElementById('personality');
         this.pathologySelect = document.getElementById('pathology');
-        this.resetBtn = document.getElementById('reset-btn');
+        this.llmProviderSelect = document.getElementById('llm-provider');
+        this.llmModelInput = document.getElementById('llm-model');
+        this.llmApiKeyInput = document.getElementById('llm-api-key');
+        this.llmBaseUrlInput = document.getElementById('llm-base-url');
+        this.saveConfigBtn = document.getElementById('save-config-btn');
         
-        // 绑定切换事件
-        this.personalitySelect.addEventListener('change', () => this.updateConfig());
-        this.pathologySelect.addEventListener('change', () => this.updateConfig());
+        this.resetBtn = document.getElementById('reset-btn');
+        this.newChatBtn = document.getElementById('new-chat-btn');
+        
+        // 加载保存的配置
+        this.loadConfig();
+        
+        // 绑定事件
+        this.saveConfigBtn.addEventListener('click', () => this.saveConfig());
         
         this.init();
+    }
+    
+    // 从 localStorage 加载配置
+    loadConfig() {
+        try {
+            const saved = localStorage.getItem(CONFIG_KEY);
+            if (saved) {
+                const config = JSON.parse(saved);
+                this.personalitySelect.value = config.personality || 'default';
+                this.pathologySelect.value = config.pathology || 'none';
+                this.llmProviderSelect.value = config.llmProvider || 'mock';
+                this.llmModelInput.value = config.llmModel || '';
+                this.llmApiKeyInput.value = config.llmApiKey || '';
+                this.llmBaseUrlInput.value = config.llmBaseUrl || '';
+                
+                console.log('配置已加载:', config);
+            }
+        } catch (e) {
+            console.error('加载配置失败:', e);
+        }
+    }
+    
+    // 保存配置到 localStorage
+    saveConfig() {
+        const config = {
+            personality: this.personalitySelect.value,
+            pathology: this.pathologySelect.value,
+            llmProvider: this.llmProviderSelect.value,
+            llmModel: this.llmModelInput.value,
+            llmApiKey: this.llmApiKeyInput.value,
+            llmBaseUrl: this.llmBaseUrlInput.value,
+        };
+        
+        try {
+            localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+            console.log('配置已保存:', config);
+            
+            // 同时发送到后端
+            this.updateConfig();
+            this.updateLLMConfig(config);
+            
+            alert('配置已保存！');
+        } catch (e) {
+            console.error('保存配置失败:', e);
+            alert('保存失败: ' + e.message);
+        }
     }
     
     init() {
@@ -36,12 +94,62 @@ class ChatApp {
         
         this.resetBtn.addEventListener('click', () => this.resetEmotion());
         
-        // 初始欢迎消息
+        // 新对话按钮
+        this.newChatBtn.addEventListener('click', () => this.newChat());
+        
+        // 欢迎页元素
         this.welcomeScreen = this.chatContainer.querySelector('.welcome-screen');
         
         // 定期获取情绪状态
         this.updateEmotionDisplay();
         setInterval(() => this.updateEmotionDisplay(), 3000);
+    }
+    
+    async updateConfig() {
+        try {
+            await fetch(`${API_BASE}/config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    personality: this.personalitySelect.value,
+                    pathology: this.pathologySelect.value
+                })
+            });
+        } catch (error) {
+            console.error('Error updating config:', error);
+        }
+    }
+    
+    async updateLLMConfig(config) {
+        try {
+            await fetch(`${API_BASE}/llm-config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: config.llmProvider,
+                    model: config.llmModel,
+                    api_key: config.llmApiKey,
+                    base_url: config.llmBaseUrl
+                })
+            });
+        } catch (error) {
+            console.error('Error updating LLM config:', error);
+        }
+    }
+    
+    newChat() {
+        // 清空聊天记录
+        this.chatContainer.innerHTML = '';
+        
+        // 恢复欢迎页
+        this.chatContainer.innerHTML = `
+            <div class="welcome-screen">
+                <div class="welcome-icon">🧠</div>
+                <h2>我是 Limbic-Flow</h2>
+                <p>一个有点情绪化的 AI，可以当我是个有感情的朋友~</p>
+            </div>
+        `;
+        this.welcomeScreen = this.chatContainer.querySelector('.welcome-screen');
     }
     
     async sendMessage() {
@@ -172,21 +280,6 @@ class ChatApp {
             const percentage = ((parseFloat(value) || 0) + 1) * 50;
             bar.style.width = `${Math.min(100, Math.max(0, percentage))}%`;
             valueEl.textContent = Math.round((parseFloat(value) || 0) * 100);
-        }
-    }
-    
-    async updateConfig() {
-        try {
-            await fetch(`${API_BASE}/config`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    personality: this.personalitySelect.value,
-                    pathology: this.pathologySelect.value
-                })
-            });
-        } catch (error) {
-            console.error('Error updating config:', error);
         }
     }
     

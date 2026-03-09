@@ -100,6 +100,25 @@ body {
     cursor: pointer;
 }
 
+.setting-item input {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    outline: none;
+}
+
+.setting-item input:focus {
+    border-color: var(--accent);
+}
+
+.setting-item input::placeholder {
+    color: var(--text-secondary);
+}
+
 .reset-btn {
     width: 100%;
     padding: 8px;
@@ -114,6 +133,22 @@ body {
 
 .reset-btn:hover {
     background: #4a4a4a;
+}
+
+.save-btn {
+    width: 100%;
+    padding: 8px;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.save-btn:hover {
+    background: var(--accent-hover);
 }
 
 /* Emotion Display */
