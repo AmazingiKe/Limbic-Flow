@@ -1,109 +1,62 @@
 """
-缓存系统
+缓存模块
 """
 
+from typing import Any, Dict, Optional
 import time
-import hashlib
-import json
-from typing import Any, Callable, Optional
 
 
-class Cache:
-    """简单内存缓存"""
+class EmotionCache:
+    """情绪缓存"""
     
-    def __init__(self, ttl: int = 3600, max_size: int = 100):
-        self.ttl = ttl  # 过期时间(秒)
+    def __init__(self, max_size: int = 100, ttl: int = 3600):
+        self.cache: Dict[str, tuple] = {}
         self.max_size = max_size
-        self._cache = {}
+        self.ttl = ttl
     
     def get(self, key: str) -> Optional[Any]:
         """获取缓存"""
-        if key in self._cache:
-            value, timestamp = self._cache[key]
+        if key in self.cache:
+            value, timestamp = self.cache[key]
             if time.time() - timestamp < self.ttl:
                 return value
             else:
-                del self._cache[key]
+                del self.cache[key]
         return None
     
     def set(self, key: str, value: Any):
         """设置缓存"""
-        # 清理过期或满时清理
-        if len(self._cache) >= self.max_size:
+        if len(self.cache) >= self.max_size:
             # 删除最老的
-            oldest = min(self._cache.items(), key=lambda x: x[1][1])
-            del self._cache[oldest[0]]
+            oldest = min(self.cache.items(), key=lambda x: x[1][1])
+            del self.cache[oldest[0]]
         
-        self._cache[key] = (value, time.time())
-    
-    def delete(self, key: str):
-        """删除缓存"""
-        if key in self._cache:
-            del self._cache[key]
+        self.cache[key] = (value, time.time())
     
     def clear(self):
         """清空缓存"""
-        self._cache.clear()
+        self.cache.clear()
+
+
+class EmotionMemoryCache:
+    """情绪记忆缓存"""
     
-    def has(self, key: str) -> bool:
-        """检查是否存在"""
-        return self.get(key) is not None
-
-
-class LRUCache:
-    """LRU 缓存"""
+    def __init__(self):
+        self.recent_states = []
+        self.max_recent = 50
     
-    def __init__(self, capacity: int = 100):
-        self.capacity = capacity
-        self._cache = {}
-        self._order = []
+    def add_state(self, state: Dict):
+        """添加状态"""
+        self.recent_states.append(state)
+        if len(self.recent_states) > self.max_recent:
+            self.recent_states.pop(0)
     
-    def get(self, key: str) -> Optional[Any]:
-        if key in self._cache:
-            # 移到末尾
-            self._order.remove(key)
-            self._order.append(key)
-            return self._cache[key]
-        return None
-    
-    def put(self, key: str, value: Any):
-        if key in self._cache:
-            self._order.remove(key)
-        elif len(self._cache) >= self.capacity:
-            oldest = self._order.pop(0)
-            del self._cache[oldest]
-        
-        self._cache[key] = value
-        self._order.append(key)
-    
-    def clear(self):
-        self._cache.clear()
-        self._order.clear()
+    def get_recent(self, count: int = 10) -> list:
+        """获取最近状态"""
+        return self.recent_states[-count:]
 
 
-def cache_key(*args, **kwargs) -> str:
-    """生成缓存键"""
-    data = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True)
-    return hashlib.md5(data.encode()).hexdigest()
-
-
-# 全局缓存实例
-_cache = Cache()
-
-
-def cached(ttl: int = 3600):
-    """缓存装饰器"""
-    def decorator(func: Callable):
-        def wrapper(*args, **kwargs):
-            key = f"{func.__name__}:{cache_key(*args, **kwargs)}"
-            
-            result = _cache.get(key)
-            if result is not None:
-                return result
-            
-            result = func(*args, **kwargs)
-            _cache.set(key, result)
-            return result
-        
-        return wrapper
-    return decorator
+if __name__ == "__main__":
+    cache = EmotionCache()
+    cache.set("test", {"joy": 0.8})
+    print(cache.get("test"))
