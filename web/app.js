@@ -36,6 +36,9 @@ class ChatApp {
         
         this.resetBtn.addEventListener('click', () => this.resetEmotion());
         
+        // 初始欢迎消息
+        this.welcomeScreen = this.chatContainer.querySelector('.welcome-screen');
+        
         // 定期获取情绪状态
         this.updateEmotionDisplay();
         setInterval(() => this.updateEmotionDisplay(), 3000);
@@ -46,9 +49,8 @@ class ChatApp {
         if (!message) return;
         
         // 隐藏欢迎页
-        const welcomeScreen = this.chatContainer.querySelector('.welcome-screen');
-        if (welcomeScreen) {
-            welcomeScreen.style.display = 'none';
+        if (this.welcomeScreen) {
+            this.welcomeScreen.style.display = 'none';
         }
         
         // 添加用户消息
