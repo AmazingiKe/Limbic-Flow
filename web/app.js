@@ -100,8 +100,7 @@ class ChatApp {
         this.saveConfigBtn.addEventListener('click', () => this.saveConfig());
         this.resetBtn.addEventListener('click', () => this.resetEmotion());
         
-        // Welcome screen
-        this.welcomeScreen = this.chatContainer.querySelector('.welcome-screen');
+        // Empty chat, no welcome screen
         
         // Poll emotion
         this.updateEmotionDisplay();
@@ -158,11 +157,6 @@ class ChatApp {
     async sendMessage() {
         const message = this.messageInput.value.trim();
         if (!message) return;
-        
-        // Hide welcome
-        if (this.welcomeScreen) {
-            this.welcomeScreen.style.display = 'none';
-        }
         
         // Add user message
         this.addMessage(message, 'user');

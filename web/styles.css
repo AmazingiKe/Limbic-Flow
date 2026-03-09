@@ -351,33 +351,6 @@ body {
     padding-bottom: 20px;
 }
 
-.welcome-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    text-align: center;
-    padding: 40px;
-}
-
-.welcome-screen h2 {
-    font-size: 28px;
-    font-weight: 600;
-    margin: 20px 0 10px;
-}
-
-.welcome-screen p {
-    color: var(--text-secondary);
-    font-size: 15px;
-}
-
-.welcome-screen .tip {
-    margin-top: 30px;
-    font-size: 13px;
-    color: var(--accent);
-}
-
 /* Messages */
 .message {
     display: flex;
